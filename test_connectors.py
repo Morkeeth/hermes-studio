@@ -205,5 +205,14 @@ class ReviewFixes(unittest.TestCase):
         self.assertTrue(any('alternatives' in a for a in ch['callable_from_chat']))
 
 
+class Demo(unittest.TestCase):
+    def test_one_command_demo_runs_without_private_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = cx.demo.run(Path(tmp) / 'demo')
+            self.assertTrue(Path(r['finished']).is_file())
+            self.assertEqual(len(r['alternatives']), 3)
+            self.assertTrue(all(Path(p).is_file() for p in r['alternatives']))
+
+
 if __name__ == '__main__':
     unittest.main()

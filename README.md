@@ -15,6 +15,14 @@ Your footage never leaves your machine. Every version is a real, editable projec
 </p>
 <p align="center"><sub>Live, 11 Nov 2026: reply "make the music quieter" to a preview. Hermes finds the matching project and queues a new revision.</sub></p>
 
+## Try it in one command, no footage needed
+
+```sh
+python3 -m connectors.demo /tmp/studio-demo --model /path/to/ggml-model.bin   # --model is optional
+```
+
+It makes a sample clip with your system's own voice (`say` on macOS, `espeak` on Linux), then renders the three style previews and a finished short with subtitles, kinetic intro and sound design. No keys, no network, no private files. Without a speech model it uses the known script with even timing so the run still completes. In Hermes: `studio_demo`.
+
 ## Start here: `studio_doctor`
 
 Ask Hermes for any video job ("make a Short from this", "add captions", "cut a trailer"). Hermes calls `studio_doctor` first: a read-only report of what your machine can do **now**, what **needs setup** and exactly how, what is **experimental**, and what is **unavailable**. It never installs, downloads or spends. On a fresh machine it is never all green, by design.
@@ -115,7 +123,7 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 64 run, 61 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
+**Tests:** 65 run, 62 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
 
 ### Next: one extraordinary edit, then the whole studio
 
@@ -143,7 +151,7 @@ hermes plugins doctor /path/to/hermes-studio --ci
 python3 -m unittest discover -s /path/to/hermes-studio -p 'test_*.py' -v
 ```
 
-Core tools: studio_take, studio_library, studio_build, studio_cut, studio_gate, studio_verify_post, studio_request, studio_status, studio_connectors, studio_timeline, studio_generate, studio_doctor, studio_finish, studio_alternatives, studio_skills. Read [SKILL.md](SKILL.md) for the explicit reviewed-recipe requirements. studio_build accepts recipe, output and render=false by default. A genuine native project template and actual word alignment are required inputs. New footage is not silently given invented timing or story approval.
+Core tools: studio_take, studio_library, studio_build, studio_cut, studio_gate, studio_verify_post, studio_request, studio_status, studio_connectors, studio_timeline, studio_generate, studio_doctor, studio_finish, studio_alternatives, studio_skills, studio_demo. Read [SKILL.md](SKILL.md) for the explicit reviewed-recipe requirements. studio_build accepts recipe, output and render=false by default. A genuine native project template and actual word alignment are required inputs. New footage is not silently given invented timing or story approval.
 
 ## Two-host conversation flow
 

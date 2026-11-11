@@ -124,6 +124,12 @@ def register(ctx):
          {'request': {'type': 'string'}, 'limit': {'type': 'integer'}}, ['request'])]:
         ctx.register_tool(name=name, toolset='hermes_studio', schema={'name': name, 'description': description, 'parameters': {'type': 'object', 'properties': properties, 'required': required, 'additionalProperties': False}}, handler=handler)
 
+    def demo_handler(args, **kwargs):
+        try: return json.dumps(_cx.demo.run(args['output_dir'], args.get('model')))
+        except Exception as exc: return json.dumps({'ok': False, 'error': str(exc)})
+
+    ctx.register_tool(name='studio_demo', toolset='hermes_studio', schema={'name': 'studio_demo', 'description': 'Try the whole flow with no footage of your own: makes a sample clip with the system voice, then renders three style previews and a finished short. No keys, no network.', 'parameters': {'type': 'object', 'properties': {'output_dir': {'type': 'string'}, 'model': {'type': 'string'}}, 'required': ['output_dir'], 'additionalProperties': False}}, handler=demo_handler)
+
     _cut = {'type': 'object', 'properties': {'source': {'type': 'string'}, 'start': {'type': 'number'}, 'end': {'type': 'number'}, 'name': {'type': 'string'}}, 'required': ['source', 'start', 'end']}
     for name, handler, description, properties, required in [
         ('studio_connectors', connectors_handler, 'List every editor, motion, generation, audio and review connector with its real status (working, export only, dry run, planned).',
