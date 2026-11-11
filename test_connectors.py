@@ -133,5 +133,27 @@ class Doctor(unittest.TestCase):
         self.assertEqual(len(r['operations']), 10)
 
 
+class Finish(unittest.TestCase):
+    def test_raw_to_finished_short_with_subtitles_and_intro(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = make_clip(Path(tmp) / 'raw.mp4', seconds=3)
+            words = [{'text': 'Hermes', 'start': 0.2, 'end': 0.6}, {'text': 'Studio', 'start': 0.6, 'end': 1.0},
+                     {'text': 'ships', 'start': 1.4, 'end': 1.8}, {'text': 'shorts.', 'start': 1.8, 'end': 2.3}]
+            r = cx.finish.finish(raw, Path(tmp) / 'out', title='Test title', words=words, intro_seconds=1.0)
+            info = json.loads(subprocess.run(['ffprobe', '-v', 'error', '-show_streams', '-show_format', '-of', 'json', r['output']],
+                                             capture_output=True, text=True, check=True).stdout)
+            v = next(s for s in info['streams'] if s['codec_type'] == 'video')
+            self.assertEqual((int(v['width']), int(v['height'])), (1080, 1920))
+            self.assertAlmostEqual(float(info['format']['duration']), 4.0, delta=0.25)
+            srt = Path(r['captions']).read_text()
+            self.assertIn('HERMES STUDIO'.title().split()[0], srt)
+            self.assertIn('00:00:01,200', srt)  # subtitles shifted past the intro
+            self.assertEqual(r['subtitle_chunks'], 2)
+
+    def test_chunks_never_linger(self):
+        c = cx.finish.chunk_words([{'text': 'end', 'start': 1.0, 'end': 9.0}])
+        self.assertLess(c[0]['end'], 2.2)
+
+
 if __name__ == '__main__':
     unittest.main()

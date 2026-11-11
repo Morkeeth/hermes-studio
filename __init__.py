@@ -104,6 +104,12 @@ def register(ctx):
 
     ctx.register_tool(name='studio_doctor', toolset='hermes_studio', schema={'name': 'studio_doctor', 'description': 'Call this FIRST for any video request (edit, cut, short, TikTok, reel, captions, trailer, animate, B-roll, generate video). Read-only report of what this machine can do now, what needs setup and how, what is experimental, and what is unavailable. Never installs or spends.', 'parameters': {'type': 'object', 'properties': {}, 'required': [], 'additionalProperties': False}}, handler=doctor_handler)
 
+    def finish_handler(args, **kwargs):
+        try: return json.dumps(_cx.finish.finish(args['raw'], args['output_dir'], args.get('title', ''), args.get('model'), None, args.get('music'), args.get('intro_seconds', 1.6), args.get('music_db', -20)))
+        except Exception as exc: return json.dumps({'ok': False, 'error': str(exc)})
+
+    ctx.register_tool(name='studio_finish', toolset='hermes_studio', schema={'name': 'studio_finish', 'description': 'Raw footage in, finished vertical short out: word-timed kinetic subtitles (local whisper.cpp), audio repair (rumble, noise, -14 LUFS), a kinetic title intro over a dithered first frame, sound design (whooshes, sub hit) and an optional music bed ducked under the voice. Writes final.mp4, captions.srt and finish.json (the editable recipe). Local only, no paid calls.', 'parameters': {'type': 'object', 'properties': {'raw': {'type': 'string'}, 'output_dir': {'type': 'string'}, 'title': {'type': 'string'}, 'model': {'type': 'string'}, 'music': {'type': 'string'}, 'intro_seconds': {'type': 'number'}, 'music_db': {'type': 'number'}}, 'required': ['raw', 'output_dir'], 'additionalProperties': False}}, handler=finish_handler)
+
     _cut = {'type': 'object', 'properties': {'source': {'type': 'string'}, 'start': {'type': 'number'}, 'end': {'type': 'number'}, 'name': {'type': 'string'}}, 'required': ['source', 'start', 'end']}
     for name, handler, description, properties, required in [
         ('studio_connectors', connectors_handler, 'List every editor, motion, generation, audio and review connector with its real status (working, export only, dry run, planned).',

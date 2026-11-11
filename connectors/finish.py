@@ -1,0 +1,248 @@
+"""studio_finish: raw footage in, finished vertical short out.
+
+One call does the whole pass, locally:
+  1. word-timed transcript (whisper.cpp, existing local model; or supplied words)
+  2. audio repair: rumble cut, noise reduction, loudness to -14 LUFS
+  3. kinetic intro: title words slam in over a blue-dithered first frame
+  4. kinetic subtitles: 1-3 word chunks pop in, the active chunk in a blue box
+  5. sound design: whoosh per intro word, a sub hit on the cut into the footage
+  6. optional beat: a music file ducked under the voice
+Outputs final.mp4, captions.srt and finish.json (every choice, so the pass can be re-run or edited).
+No downloads, no paid calls. Bring-your-own generation inserts plug in later through studio_generate.
+"""
+import json
+import math
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+W, H, FPS = 1080, 1920, 30
+BLUE, PALE, INK = (26, 26, 240), (232, 234, 255), (255, 255, 255)
+FONT_CANDIDATES = ['/System/Library/Fonts/Supplemental/DIN Condensed Bold.ttf',
+                   '/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf']
+
+
+def _font(size):
+    for f in FONT_CANDIDATES:
+        if Path(f).is_file():
+            return ImageFont.truetype(f, size)
+    return ImageFont.load_default()
+
+
+def _run(argv, timeout=1800):
+    p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+    if p.returncode:
+        raise RuntimeError(p.stderr[-1500:])
+    return p.stdout
+
+
+def _duration(path):
+    return float(_run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(path)]).strip())
+
+
+def _has_audio(path):
+    return bool(_run(['ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', str(path)]).strip())
+
+
+# ---------- 1. words ----------
+
+def transcribe_words(video, model, work):
+    """Word timings from whisper.cpp (-ml 1 gives one token-group per segment)."""
+    whisper = shutil.which('whisper-cli') or shutil.which('whisper-cpp')
+    if not whisper:
+        raise RuntimeError('whisper-cli not found; supply words or install whisper.cpp')
+    if not model or not Path(model).is_file():
+        raise RuntimeError('no local speech model; set model to an existing whisper.cpp .bin (Studio never downloads one)')
+    wav = Path(work) / 'speech.wav'
+    _run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(video), '-vn', '-ac', '1', '-ar', '16000', str(wav)])
+    base = Path(work) / 'words'
+    _run([whisper, '-m', str(model), '-f', str(wav), '-ml', '1', '-sow', '-oj', '-of', str(base), '-np'])
+    data = json.loads((base.with_suffix('.json')).read_text())
+    words = []
+    for seg in data.get('transcription', []):
+        t = seg.get('text', '').strip()
+        if not t:
+            continue
+        off = seg['offsets']
+        words.append({'text': t, 'start': off['from'] / 1000, 'end': off['to'] / 1000})
+    return words
+
+
+def chunk_words(words, max_words=3, max_gap=0.35):
+    chunks, cur = [], []
+    for w in words:
+        if cur and (len(cur) >= max_words or w['start'] - cur[-1]['end'] > max_gap or cur[-1]['text'][-1:] in '.!?,'):
+            chunks.append(cur); cur = []
+        cur.append(w)
+    if cur:
+        chunks.append(cur)
+    out = []
+    for c in chunks:
+        start = c[0]['start']
+        cap = start + 0.6 + 0.45 * len(c)  # never hold a chunk longer than it takes to read it
+        out.append({'text': ' '.join(w['text'] for w in c), 'start': start, 'end': min(max(c[-1]['end'], start + 0.3), cap)})
+    return out
+
+
+def write_srt(chunks, path, offset=0.0):
+    def ts(s):
+        ms = int(round(max(0.0, s) * 1000)); h, ms = divmod(ms, 3600000); m, ms = divmod(ms, 60000); sec, ms = divmod(ms, 1000)
+        return f'{h:02}:{m:02}:{sec:02},{ms:03}'
+    lines = []
+    for i, c in enumerate(chunks, 1):
+        lines += [str(i), f'{ts(c["start"] + offset)} --> {ts(c["end"] + offset)}', c['text'], '']
+    Path(path).write_text('\n'.join(lines))
+    return str(path)
+
+
+# ---------- 3+4. graphics ----------
+
+def _dither_bg(frame_png):
+    g = ImageOps.autocontrast(Image.open(frame_png).convert('L'), cutoff=2)
+    g = ImageOps.fit(g, (W // 3, H // 3)).convert('1').resize((W, H), Image.NEAREST).convert('L')
+    return ImageOps.colorize(g, black=(20, 20, 220), white=(70, 70, 255))
+
+
+def _ease_out_back(x):
+    c1 = 1.70158; c3 = c1 + 1
+    return 1 + c3 * (x - 1) ** 3 + c1 * (x - 1) ** 2
+
+
+def render_intro(frame_png, title, seconds, frames_dir):
+    """Title words slam in one by one over the dithered first frame. Returns per-word hit times."""
+    bg = _dither_bg(frame_png)
+    words = title.upper().split()
+    n = max(1, len(words))
+    per = min(0.35, (seconds - 0.5) / n)
+    hits = [0.15 + i * per for i in range(n)]
+    size = 190 if n <= 3 else 150
+    f = _font(size)
+    # lay out lines greedily
+    lines, cur = [], []
+    for i, w in enumerate(words):
+        test = ' '.join(x for _, x in cur + [(i, w)])
+        if cur and ImageDraw.Draw(bg).textlength(test, font=f) > W - 160:
+            lines.append(cur); cur = []
+        cur.append((i, w))
+    lines.append(cur)
+    y0 = (H - len(lines) * size * 0.95) / 2
+    total = int(seconds * FPS)
+    for k in range(total):
+        t = k / FPS
+        im = bg.copy(); d = ImageDraw.Draw(im)
+        for li, line in enumerate(lines):
+            x = 80
+            for i, w in line:
+                p = (t - hits[i]) / 0.18
+                if p <= 0:
+                    x += d.textlength(w + ' ', font=f); continue
+                s = _ease_out_back(min(1.0, p))
+                fs = _font(max(8, int(size * (0.6 + 0.4 * s))))
+                d.text((x, y0 + li * size * 0.95 + (size - fs.size) * 0.5), w, font=fs, fill=INK)
+                x += d.textlength(w + ' ', font=f)
+        im.save(Path(frames_dir) / f'i{k:05}.png')
+    return hits
+
+
+def render_caption_strip(chunks, duration, strip_h, frames_dir):
+    """Transparent caption frames: active chunk pops in a blue box."""
+    f = _font(110)
+    total = int(math.ceil(duration * FPS))
+    blank = Image.new('RGBA', (W, strip_h), (0, 0, 0, 0))
+    ci = 0
+    for k in range(total):
+        t = k / FPS
+        while ci < len(chunks) and chunks[ci]['end'] < t:
+            ci += 1
+        c = chunks[ci] if ci < len(chunks) and chunks[ci]['start'] <= t <= chunks[ci]['end'] else None
+        if not c:
+            blank.save(Path(frames_dir) / f'c{k:05}.png'); continue
+        p = min(1.0, (t - c['start']) / 0.12)
+        s = _ease_out_back(p)
+        fs = _font(max(10, int(110 * (0.75 + 0.25 * s))))
+        im = blank.copy(); d = ImageDraw.Draw(im)
+        text = c['text'].upper()
+        tw = d.textlength(text, font=fs)
+        if tw > W - 80:
+            fs = _font(int(fs.size * (W - 80) / tw)); tw = d.textlength(text, font=fs)
+        x = (W - tw) / 2; y = (strip_h - fs.size) / 2
+        d.rounded_rectangle([x - 26, y - 14, x + tw + 26, y + fs.size + 10], radius=20, fill=BLUE + (int(235 * p),))
+        d.text((x, y), text, font=fs, fill=INK + (int(255 * p),))
+        im.save(Path(frames_dir) / f'c{k:05}.png')
+    return total
+
+
+# ---------- 5. sound design ----------
+
+def render_sfx(hits, cut_at, total, path):
+    """Whoosh (filtered noise swell) before each intro hit, a sub hit on the cut into the footage."""
+    parts, labels = [], []
+    for i, h in enumerate(hits):
+        start = max(0.0, h - 0.18)
+        parts.append(f"anoisesrc=d=0.3:c=pink:r=48000:a=0.5,highpass=f=900,lowpass=f=6000,afade=t=in:d=0.18,afade=t=out:st=0.18:d=0.12,"
+                     f"volume=0.35,adelay={int(start * 1000)}|{int(start * 1000)}[w{i}]")
+        labels.append(f'[w{i}]')
+    parts.append(f"sine=f=52:d=0.6:r=48000,volume=0.9,afade=t=out:st=0.05:d=0.55,adelay={int(cut_at * 1000)}|{int(cut_at * 1000)}[hit]")
+    labels.append('[hit]')
+    parts.append(f"{''.join(labels)}amix=inputs={len(labels)}:normalize=0,apad=whole_dur={total},atrim=0:{total}[out]")
+    _run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-filter_complex', ';'.join(parts), '-map', '[out]', '-ac', '2', str(path)])
+    return str(path)
+
+
+# ---------- the pass ----------
+
+AUDIO_FIX = 'highpass=f=80,afftdn=nf=-25,loudnorm=I=-14:TP=-1.5:LRA=11'
+
+
+def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_seconds=1.6, music_db=-20):
+    raw = Path(raw).expanduser().resolve(strict=True)
+    out = Path(out_dir).expanduser(); out.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        dur = _duration(raw)
+        if words is None:
+            words = transcribe_words(raw, model, tmp) if _has_audio(raw) else []
+        chunks = chunk_words(words)
+        title = title or ' '.join(w['text'] for w in words[:4]) or 'HERMES STUDIO'
+        _run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', str(min(0.5, dur / 2)), '-i', str(raw), '-frames:v', '1', str(tmp / 'first.png')])
+        (tmp / 'intro').mkdir(); (tmp / 'caps').mkdir()
+        hits = render_intro(tmp / 'first.png', title, intro_seconds, tmp / 'intro')
+        strip_h = 300
+        render_caption_strip(chunks, dur, strip_h, tmp / 'caps')
+        total = intro_seconds + dur
+        render_sfx(hits, intro_seconds, total, tmp / 'sfx.wav')
+        # voice: repaired footage audio, delayed past the intro
+        inputs = ['-framerate', str(FPS), '-i', str(tmp / 'intro' / 'i%05d.png'),
+                  '-i', str(raw),
+                  '-framerate', str(FPS), '-i', str(tmp / 'caps' / 'c%05d.png'),
+                  '-i', str(tmp / 'sfx.wav')]
+        d_ms = int(intro_seconds * 1000)
+        v = (f"[1:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},setsar=1[foot];"
+             f"[foot][2:v]overlay=0:{H - strip_h - 260}:format=auto[capd];"
+             f"[0:v]fps={FPS},setsar=1,format=yuv420p[intro];[capd]format=yuv420p[body];"
+             f"[intro][body]concat=n=2:v=1:a=0[v]")
+        if _has_audio(raw):
+            a = f"[1:a]{AUDIO_FIX},aresample=48000,adelay={d_ms}|{d_ms},apad=whole_dur={total}[voice];"
+        else:
+            a = f"anullsrc=r=48000:cl=stereo,atrim=0:{total}[voice];"
+        mix = ['[voice]', '[3:a]']
+        if music:
+            inputs += ['-stream_loop', '-1', '-i', str(Path(music).expanduser())]
+            a += (f"[4:a]aresample=48000,volume={music_db}dB,atrim=0:{total}[mus];"
+                  f"[voice]asplit=2[voice][key];[mus][key]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=300[duck];")
+            mix.append('[duck]')
+        a += f"{''.join(mix)}amix=inputs={len(mix)}:normalize=0,alimiter=limit=0.95[a]"
+        final = out / 'final.mp4'
+        _run(['ffmpeg', '-nostdin', '-v', 'error', '-y', *inputs, '-filter_complex', v + ';' + a,
+              '-map', '[v]', '-map', '[a]', '-t', f'{total:.3f}', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p',
+              '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(final)])
+        srt = write_srt(chunks, out / 'captions.srt', offset=intro_seconds)
+        recipe = {'source': str(raw), 'title': title, 'intro_seconds': intro_seconds, 'audio_fix': AUDIO_FIX,
+                  'music': str(music) if music else None, 'music_db': music_db, 'chunks': chunks,
+                  'sound_design': {'whoosh_at': hits, 'sub_hit_at': intro_seconds}, 'output': str(final)}
+        (out / 'finish.json').write_text(json.dumps(recipe, indent=1))
+    return {'ok': True, 'output': str(final), 'captions': srt, 'recipe': str(out / 'finish.json'),
+            'seconds': round(_duration(final), 2), 'subtitle_chunks': len(chunks)}

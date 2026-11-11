@@ -85,7 +85,7 @@ class PluginTests(unittest.TestCase):
         ctx=MagicMock();module.register(ctx)
         ctx.register_skill.assert_called_once()
         registered={c.kwargs['name']:c.kwargs for c in ctx.register_tool.call_args_list}
-        self.assertEqual(set(registered),{'studio_take','studio_cut','studio_gate','studio_verify_post','studio_library','studio_build','studio_request','studio_status','studio_connectors','studio_timeline','studio_generate','studio_doctor'})
+        self.assertEqual(set(registered),{'studio_take','studio_cut','studio_gate','studio_verify_post','studio_library','studio_build','studio_request','studio_status','studio_connectors','studio_timeline','studio_generate','studio_doctor','studio_finish'})
         result=json.loads(registered['studio_gate']['handler']({'video':str(HERE/'missing.mp4')}))
         self.assertFalse(result['pass']);self.assertTrue(result['reasons'])
 

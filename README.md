@@ -31,6 +31,51 @@ Ask Hermes for any video job ("make a Short from this", "add captions", "cut a t
 
 <br clear="right">
 
+## The new timeline: editing as a conversation
+
+The timeline used to be a strip of clips you drag around. In Hermes Studio the timeline is the conversation. Every message is an edit, every reply points at an exact version, and the project underneath stays real and editable.
+
+```mermaid
+flowchart LR
+  A[Raw footage in chat] --> D[studio_doctor: what can this machine do]
+  D --> F[studio_finish: subtitles, audio fix, kinetic intro, sound design]
+  F --> P[(Editable project + recipe)]
+  P --> T[Preview back in chat]
+  T -->|reply: change it| R[New version of the same project]
+  R --> P
+  P -->|studio_timeline| O[OpenTimelineIO]
+  O --> E1[Final Cut / Resolve via FCPXML]
+  O --> E2[Premiere, next]
+  P -->|bring your own key| G[Higgsfield / any video model / ElevenLabs]
+  G --> P
+```
+
+## New: `studio_finish`, raw footage to a finished short
+
+<img src="docs/img/finish-intro.png" alt="Kinetic intro over a dithered first frame" width="180"> <img src="docs/img/finish-captions.png" alt="Kinetic subtitles" width="180">
+
+One call, all local:
+
+- **Subtitles:** word-timed with whisper.cpp, 1 to 3 words at a time, popping in a blue box. Also written as `captions.srt`.
+- **Audio repair:** rumble cut, noise reduction, loudness to -14 LUFS.
+- **Kinetic intro:** title words slam in over a blue-dithered first frame.
+- **Sound design:** a whoosh into every title word, a sub hit on the cut into the footage.
+- **Beat:** optional music bed, ducked under the voice.
+- **Recipe:** `finish.json` records every choice, so the pass can be edited and re-run.
+
+Run on a real 14-second raw camera take (Lumix, 18 Oct 2026): 6 subtitle chunks, finished in about 23 seconds on a laptop.
+
+## Inspired by the ecosystem
+
+There is a huge wave of video skills and engines. Studio wants to conduct them, not replace them:
+
+- [hermes-video-editor](https://github.com/oliverhees/hermes-video-editor): the native editable project Studio builds on.
+- [whisper.cpp](https://github.com/ggml-org/whisper.cpp): local word-timed speech.
+- [Eyes](https://github.com/Agenziamaia/eyes): frame, motion and sound measurements.
+- LottieFiles motion-design skill: motion timing and easing language.
+- [Remotion](https://github.com/remotion-dev/remotion), [Motion Canvas](https://github.com/motion-canvas/motion-canvas), [Revideo](https://github.com/redotvideo/revideo), [Manim](https://github.com/ManimCommunity/manim): code-driven animation engines, next in line as motion connectors.
+- Hermes showreel and session-recording hooks: turning agent work itself into footage.
+
 ## Bring your own tools
 
 Studio is the hub. Plug **any video model** into Hermes with your own account: your own **Higgsfield** (or any other video model) for generated shots, your own **ElevenLabs** for voice, sound effects and music, and your own editor (**Final Cut**, **DaVinci Resolve**, **Premiere**). Keys stay in your environment; Studio never stores or logs them. `studio_doctor` shows which ones are connected. Today these adapters are dry runs that plan the request; paid calls will always ask you first.
@@ -55,7 +100,7 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 43 run, 40 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
+**Tests:** 45 run, 42 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
 
 ### Next, in order
 
@@ -81,7 +126,7 @@ hermes plugins doctor /path/to/hermes-studio --ci
 python3 -m unittest discover -s /path/to/hermes-studio -p 'test_*.py' -v
 ```
 
-Core tools: studio_take, studio_library, studio_build, studio_cut, studio_gate, studio_verify_post, studio_request, studio_status, studio_connectors, studio_timeline, studio_generate, studio_doctor. Read [SKILL.md](SKILL.md) for the explicit reviewed-recipe requirements. studio_build accepts recipe, output and render=false by default. A genuine native project template and actual word alignment are required inputs. New footage is not silently given invented timing or story approval.
+Core tools: studio_take, studio_library, studio_build, studio_cut, studio_gate, studio_verify_post, studio_request, studio_status, studio_connectors, studio_timeline, studio_generate, studio_doctor, studio_finish. Read [SKILL.md](SKILL.md) for the explicit reviewed-recipe requirements. studio_build accepts recipe, output and render=false by default. A genuine native project template and actual word alignment are required inputs. New footage is not silently given invented timing or story approval.
 
 ## Two-host conversation flow
 
