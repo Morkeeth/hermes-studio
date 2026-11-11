@@ -73,7 +73,7 @@ There is a huge wave of video skills and engines. Studio wants to conduct them, 
 - [whisper.cpp](https://github.com/ggml-org/whisper.cpp): local word-timed speech.
 - [Eyes](https://github.com/Agenziamaia/eyes): frame, motion and sound measurements.
 - LottieFiles motion-design skill: motion timing and easing language.
-- [Remotion](https://github.com/remotion-dev/remotion), [Motion Canvas](https://github.com/motion-canvas/motion-canvas), [Revideo](https://github.com/redotvideo/revideo), [Manim](https://github.com/ManimCommunity/manim): code-driven animation engines, next in line as motion connectors.
+- [Remotion](https://github.com/remotion-dev/remotion), [Motion Canvas](https://github.com/motion-canvas/motion-canvas), [Revideo](https://github.com/midrender/revideo), [Manim](https://github.com/ManimCommunity/manim): code-driven animation engines, next in line as motion connectors.
 - Hermes showreel and session-recording hooks: turning agent work itself into footage.
 
 ## Bring your own tools
