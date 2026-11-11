@@ -4,9 +4,9 @@
 
 ### Video editing becomes a conversation.
 
-Send raw clips in a chat. Hermes finds the best take, cuts a vertical short with animated captions and music from your own library, checks it, and sends it back. Reply to the video to change it.
+Turn a reviewed local take into an editable vertical short with animated captions and music from your own library. Reply to the delivered preview to change it: Hermes finds the exact project behind that video and makes a new editable revision, which is rendered through an explicit safety gate.
 
-Your footage never leaves your machine. Every edit is a real, editable project.
+Your footage never leaves your machine. Every version is a real, editable project.
 
 <p align="center">
   <img src="docs/img/telegram-reply.png" alt="Replying to a delivered preview in Telegram" width="31%">
@@ -19,9 +19,11 @@ Your footage never leaves your machine. Every edit is a real, editable project.
 
 <img src="docs/img/finished-short.png" alt="A finished short with animated captions" width="200" align="right">
 
-- **Reply to edit, live in Telegram.** A reply to a delivered preview resolves the exact project behind it and creates a new editable revision with the music lowered. The old preview is invalidated. The re-export waits on the render gate.
-- **One real take, end to end.** Local transcription, library music, an editable portrait cut with animated captions, and a checked export. The finished short passed frame, motion and audio measurements.
+- **Reply to edit, live in Telegram (11 Nov 2026).** "Make the music quieter" on a delivered preview resolved the matching project and created a new editable revision with the music at -28 dB. That revision then waits at the render gate; the re-rendered video is not yet delivered automatically.
+- **One reviewed take, end to end.** Local transcription, library music, an editable portrait cut with animated captions, and a checked export that passed frame, motion and audio measurements.
 - **Local by design.** whisper.cpp on your machine, your own media library, no paid models.
+
+**Today the conversation edit supports music level.** New, unmatched footage returns `needs_reviewed_cut_recipe` instead of guessing a story.
 
 <br clear="right">
 
@@ -31,17 +33,28 @@ Every creative tool is getting an agent. None of them talk to each other. Hermes
 
 You talk. Hermes picks the take, cuts it in your editor, animates it in your motion engine, generates the missing shot with the best model for the job, checks every frame, and hands you back an editable project. You stay the director. Hermes does the crew.
 
-The connector layer ships in this release (v0.6.0). Everything goes through one OpenTimelineIO timeline, so adding a tool means writing one adapter.
+The connector layer is in this release (v0.6.0) as an early foundation. Every connector reports what it really preserves:
 
-| | Working now | Next |
+| Connector | Status | What survives |
 |---|---|---|
-| **Editors** | FFmpeg render, OpenTimelineIO in and out, FCPXML export for **Final Cut Pro** and **DaVinci Resolve**, hermes-video-editor | Resolve scripting, **Premiere Pro** |
-| **Generation** | `studio_generate` plans requests for **Higgsfield** (dry run, never spends) | Higgsfield and the best video and image models via MCP, always behind the owner's spending approval |
-| **Motion** | Lottie motion guidance | **Motion Canvas**, **Revideo**, **Manim** |
-| **Audio** | whisper.cpp, loudness, your music library | voice and music models |
-| **Review** | frame, motion and sound measurements | |
+| FFmpeg render | ✅ tested | cuts, portrait frame, audio |
+| OpenTimelineIO | ✅ tested, read back by the real `opentimelineio` library | one video track of cuts. Captions, music and overlays are ❌ not carried yet |
+| Final Cut Pro (FCPXML 1.10) | ❓ file written and checked, not yet opened in Final Cut | cuts only |
+| DaVinci Resolve (FCPXML or OTIO) | ❓ not yet opened in Resolve | cuts only |
+| Premiere Pro | ❌ next | |
+| Higgsfield | ⚠️ dry run: plans a request, never sends, never spends | |
+| Motion Canvas, Revideo, Manim | ❌ next | |
 
-New tools: `studio_connectors` lists every connector with its real status, `studio_timeline` writes one edit as OTIO and FCPXML and can render it with FFmpeg, `studio_generate` plans a generation request. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md). The test suite includes an OTIO round trip that fails if a single cut is dropped, read back by the real `opentimelineio` library.
+The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
+
+**Tests:** 40 run, 37 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
+
+### Next, in order
+
+1. Close the loop: an authorized revision renders through the gate and the new video comes back in the chat.
+2. One more creative edit beyond music level: caption style, a tighter opening, or an animated title.
+3. One real generated insert from one real model, approved before any spend.
+4. A Studio Doctor command and a sample project with redistributable media, so anyone can reproduce the core flow.
 
 ## Install
 
