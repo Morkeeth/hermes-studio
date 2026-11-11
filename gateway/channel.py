@@ -51,8 +51,8 @@ def request(args, root=None):
     root = Path(root) if root else queue_root()
     cfg = config(root)
     action = args['action']
-    if action not in {'library', 'prepare', 'edit', 'preview', 'alternatives', 'finish', 'generate', 'approve'}:
-        raise ValueError('Choose library, prepare, edit, preview, alternatives, finish, generate or approve')
+    if action not in {'library', 'prepare', 'edit', 'preview', 'alternatives', 'finish', 'generate', 'approve', 'revise'}:
+        raise ValueError('Choose library, prepare, edit, preview, alternatives, finish, generate, approve or revise')
     parent = None
     if args.get('parent'):
         parent = json.loads(job_path(root, args['parent']).read_text())
@@ -66,6 +66,14 @@ def request(args, root=None):
     if action == 'edit' and (not parent or not parent.get('result', {}).get('project_id')):
         raise ValueError('Reply edits need a completed parent job with a real project')
     edit = args.get('edit', {})
+    if action == 'revise':
+        if not parent or (parent.get('result') or {}).get('state') not in ('finished', 'generated', 'revised'):
+            raise ValueError('revise needs a reply to a finished short')
+        allowed = {'style', 'captions_from', 'trim_start', 'punchier', 'title', 'quieter_music'}
+        if not edit or set(edit) - allowed:
+            raise ValueError('revise edit can combine: ' + ', '.join(sorted(allowed)))
+        if 'trim_start' in edit and not (type(edit['trim_start']) in (int, float) and 0 <= edit['trim_start'] <= 30):
+            raise ValueError('trim_start is seconds to cut from the opening, 0 to 30')
     if action == 'edit':
         if set(edit) != {'music_gain_db'} or type(edit['music_gain_db']) not in (int, float) or not -60 <= edit['music_gain_db'] <= 0:
             raise ValueError('This connector currently supports explicit music_gain_db edits only (-60 to 0)')
@@ -84,8 +92,8 @@ def request(args, root=None):
     if action == 'approve':
         if not parent or (parent.get('result') or {}).get('state') != 'awaiting_approval':
             raise ValueError('approve needs a reply to a generation quote')
-        if str(args.get('query', '')).strip().upper() != 'YES':
-            raise ValueError('approve needs query="YES" from the creator, typed by them')
+        if not re.fullmatch(r'YES [0-9A-F]{6}', str(args.get('query', '')).strip().upper()):
+            raise ValueError("approve needs the creator's exact reply: YES plus the six-character code from the quote. Never supply it yourself.")
     source = None
     if args.get('source'):
         source = allowed_file(args['source'], cfg['inbound_roots'])
@@ -130,6 +138,7 @@ EXPLAIN = {
     'finished': 'The finished short is rendered. Reply with another letter for a re-cut, or ask for a generated opening shot.',
     'awaiting_approval': 'A generated shot was quoted. Nothing is spent until the creator replies YES to the quote.',
     'generated': 'The generated shot was added to the start of the short as a new version.',
+    'revised': 'The revision is rendered as a new version; the previous version is kept. The message lists what changed and what could not.',
     'failed': 'This step failed; the error says why. Nothing was overwritten.',
 }
 

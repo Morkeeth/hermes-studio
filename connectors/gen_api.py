@@ -71,8 +71,9 @@ def quote(name, prompt, monthly_cap_usd=20.0):
          'cost_usd': cost, 'spent_this_month_usd': round(spent, 2), 'monthly_cap_usd': monthly_cap_usd,
          'approval_code': code, 'approval_hash': hashlib.sha256((code + prompt + name).encode()).hexdigest(),
          'blockers': blockers}
+    q['expires_at'] = time.time() + 30 * 60
     q['message'] = (f"Generate with {name} ({m['provider']}): " + (f'about ${cost:.2f}' if cost is not None else 'cost UNKNOWN, check the provider pricing page')
-                    + f". Spent this month ${spent:.2f} of ${monthly_cap_usd:.2f}. Reply YES to spend."
+                    + f". Spent this month ${spent:.2f} of ${monthly_cap_usd:.2f}. To spend, reply exactly: YES {code}  (valid 30 minutes, once)"
                     + (' Blocked: ' + '; '.join(blockers) if blockers else ''))
     return q
 
@@ -144,8 +145,10 @@ def generate(q, approval, out_dir, image=None):
     """Spend only with the exact approval code from the quote. Downloads one MP4 into out_dir."""
     if q['blockers']:
         raise PermissionError('blocked: ' + '; '.join(q['blockers']))
-    if str(approval).strip().upper() not in ('YES', q['approval_code']):
-        raise PermissionError('not approved: reply YES to the quote first')
+    if str(approval).strip().upper() != 'YES ' + q['approval_code']:
+        raise PermissionError('not approved: the creator must reply YES plus the one-time code from the quote')
+    if time.time() > q.get('expires_at', 0):
+        raise PermissionError('quote expired; ask for a new quote')
     if hashlib.sha256((q['approval_code'] + q['prompt'] + q['model']).encode()).hexdigest() != q['approval_hash']:
         raise PermissionError('quote changed after approval')
     m = _models()[q['model']]

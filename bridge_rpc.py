@@ -20,7 +20,7 @@ def rpc(root, payload):
     if op == 'deliver':
         # Worker alone invokes this after a successful preview result. Recipient
         # comes from explicit host config, never from queue/model arguments.
-        if obj['action'] not in {'prepare','preview','finish','approve'} or obj['state'] != 'completed' or not obj.get('result',{}).get('preview'):
+        if obj['action'] not in {'prepare','preview','finish','approve','revise'} or obj['state'] != 'completed' or not obj.get('result',{}).get('preview'):
             raise ValueError('Job has no completed checked preview')
         from telegram_delivery import send_preview
         import hashlib
@@ -33,6 +33,10 @@ def rpc(root, payload):
         if not path.exists():
             with path.open('xb') as stream:stream.write(raw)
         caption='Your checked Studio preview. Reply with the change you want.'
+        if obj['result'].get('state')=='revised':
+            r=obj['result']
+            caption='Version '+str(r.get('revision'))+'. Changed: '+'; '.join(r.get('changed',[]))+('. Could not: '+'; '.join(r.get('skipped',[])) if r.get('skipped') else '')+'. Previous version kept. Reply with more changes.'
+            caption=caption[:1000]
         if obj['result'].get('state')=='generated':
             caption=f"New version with a generated opening ({obj['result'].get('model')}). Reply with another letter or a new shot idea."
         if obj['result'].get('state')=='finished':

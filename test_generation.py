@@ -41,7 +41,7 @@ class Quote(unittest.TestCase):
     def test_no_spend_without_yes(self):
         with Env({'demo': {'provider': 'fal', 'model': 'fal-ai/demo', 'cost_usd': 0.4}}):
             q = gen_api.quote('demo', 'a slow blue push-in')
-            self.assertIn('Reply YES', q['message'])
+            self.assertIn('reply exactly: YES ' + q['approval_code'], q['message'])
             with self.assertRaises(PermissionError):
                 gen_api.generate(q, 'maybe', '/tmp/never')
 
@@ -50,7 +50,7 @@ class Quote(unittest.TestCase):
             q = gen_api.quote('big', 'x', monthly_cap_usd=20.0)
             self.assertTrue(any('cap' in b for b in q['blockers']))
             with self.assertRaises(PermissionError):
-                gen_api.generate(q, 'YES', '/tmp/never')
+                gen_api.generate(q, 'YES ' + q['approval_code'], '/tmp/never')
 
     def test_unknown_cost_is_said_out_loud(self):
         with Env({'mystery': {'provider': 'replicate', 'model': 'owner/name'}}):
@@ -73,7 +73,7 @@ class FullLoop(unittest.TestCase):
             q = gen_api.quote('demo', 'animated blue intro')
             with patch.object(gen_api, '_run_fal', return_value={'video': {'url': 'https://cdn.example/out.mp4'}}), \
                  patch('connectors.gen_api.urllib.request.urlopen', return_value=io.BytesIO(shot_bytes)):
-                g = gen_api.generate(q, 'YES', tmp / 'gen')
+                g = gen_api.generate(q, 'YES ' + q['approval_code'], tmp / 'gen')
             self.assertTrue(Path(g['video']).is_file())
             self.assertAlmostEqual(gen_api.spent_this_month(), 0.4)
             r = finish.insert_shot(fin['output'], g['video'], tmp / 'v2', seconds=3.0)

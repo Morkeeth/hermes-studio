@@ -51,7 +51,7 @@ class HeroLoop(unittest.TestCase):
                             state, result = connector_worker.process(cfg, job, fetch)
                     except Exception as e:  # the real worker records failures the same way
                         state, result = 'failed', {'error': str(e)}
-                    if job['action'] in ('alternatives', 'finish') and state == 'completed':
+                    if job['action'] in ('alternatives', 'finish', 'revise') and state == 'completed':
                         connector_worker.atomic(Path(ws) / job['id'] / 'result.json', result)
                     bridge_rpc.rpc(gw, {'op': 'finish', 'id': job['id'], 'state': state, 'result': result})
                     with patch('telegram_delivery.send_preview', side_effect=fake_send):
@@ -82,6 +82,16 @@ class HeroLoop(unittest.TestCase):
             job, state, result = worker_pass()
             self.assertEqual((result['style'], result['revision']), ('hermes-dither', 1))
             self.assertEqual(len(sent), 5)
+            # 3b. one reply, several changes: keep C, A's captions, tighter and punchier opening, quieter music
+            channel.request({'action': 'revise', 'reply_to_message_id': sent[4]['mid'], 'request_key': 'tg:42:3b:revise',
+                             'edit': {'style': 'C', 'captions_from': 'A', 'trim_start': 0.5, 'punchier': True, 'quieter_music': True}}, gw)
+            job, state, result = worker_pass()
+            self.assertEqual((state, result['state'], result['revision']), ('completed', 'revised', 2))
+            self.assertTrue(any('captions from clean-short' in c for c in result['changed']))
+            self.assertTrue(any('tightened' in c for c in result['changed']))
+            self.assertTrue(any('quieter music' in k for k in result['skipped']))  # mixed track: said plainly, not faked
+            self.assertIn('Could not: quieter music', sent[-1]['caption'])
+            self.assertIn('Previous version kept', sent[-1]['caption'])
             # 4. a letter that was never offered fails honestly
             channel.request({'action': 'finish', 'reply_to_message_id': sent[4]['mid'], 'style': 'D', 'request_key': 'tg:42:4:finish'}, gw)
             job, state, result = worker_pass()

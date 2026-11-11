@@ -29,3 +29,7 @@ When the user replies to one of those previews with a letter or a style name, ca
 ## Generated shots from your own video model
 
 Reply to a finished short with an idea for an opening shot. Hermes calls `studio_request(action="generate", reply_to_message_id=<the finished video>, query=<the shot prompt>, title=<model name from models.json>, request_key=...)`. The worker replies with a quote: model, cost (or UNKNOWN), spent this month and the cap. Nothing is spent yet. Only when the creator types YES as a reply to that quote: `studio_request(action="approve", reply_to_message_id=<the quote message>, query="YES", request_key=...)`. Never type YES on the creator's behalf. The generated shot is put at the start of the short as a new version and sent back.
+
+## Several changes in one reply
+
+When the creator replies to a finished short with direction like "keep C, use A's captions, tighten the opening, quieter music", call `studio_request(action="revise", reply_to_message_id=<that video>, edit={"style": "C", "captions_from": "A", "trim_start": 1.5, "punchier": true, "quieter_music": true}, request_key=...)`. Combine any of: style, captions_from, trim_start (seconds), punchier, title, quieter_music. It renders a new version and keeps the old one. The reply lists what changed and what could not be done (for example, music mixed into the speech track cannot be lowered on its own). Never claim a change the reply does not list.

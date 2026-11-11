@@ -48,6 +48,8 @@ def process(cfg, job, fetch):
         return creative(cfg, job, fetch, root)
     if job['action'] in ('generate', 'approve'):
         return generation(cfg, job, root)
+    if job['action'] == 'revise':
+        return revise(cfg, job, root)
     if job['action'] == 'prepare':
         blob = fetch(job['id'])
         raw = base64.b64decode(blob['base64'], validate=True)
@@ -166,9 +168,20 @@ def generation(cfg, job, root):
     parent = json.loads((root / job['parent'] / 'result.json').read_text())
     if job['action'] == 'generate':
         q = gen_api.quote(job['title'], job['query'], cfg.get('monthly_video_cap_usd', 20.0))
-        return 'completed', {'state': 'awaiting_approval', 'quote': q, 'finished': parent['preview'], 'source': parent['source'],
+        # The one-time code stays on the workstation and in the creator's chat. The gateway, the agent and
+        # studio_status only see the quote without it, so the agent cannot approve on the creator's behalf.
+        atomic(folder / 'quote-secret.json', q)
+        public = {k: v for k, v in q.items() if k not in ('approval_code', 'message')}
+        return 'completed', {'state': 'awaiting_approval', 'quote': public, 'quote_message': q['message'],
+                             'finished': parent['preview'], 'source': parent['source'],
                              'options': parent.get('options'), 'title': parent.get('title'), 'project_id': parent.get('project_id')}
-    q = parent['quote']
+    secret_path = root / job['parent'] / 'quote-secret.json'
+    q = json.loads(secret_path.read_text())
+    if q.get('used'):
+        raise PermissionError('this quote was already spent')
+    if str(job.get('query', '')).strip().upper() != 'YES ' + q['approval_code']:
+        raise PermissionError('approval code does not match this quote')
+    atomic(secret_path, dict(q, used=True))  # marked before spending: a crash afterwards never allows a second spend
     frame = folder / 'reference.png'
     subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', '2.5', '-i', parent['finished'], '-frames:v', '1', str(frame)], check=True)
     shot = gen_api.generate(q, job['query'], folder / 'shot', image=frame)
@@ -176,6 +189,47 @@ def generation(cfg, job, root):
     return 'completed', {'state': 'generated', 'model': q['model'], 'cost_usd': q['cost_usd'], 'shot': shot['video'],
                          'preview': r['output'], 'preview_sha256': _sha(r['output']), 'source': parent['source'],
                          'options': parent.get('options'), 'title': parent.get('title'), 'project_id': parent.get('project_id')}
+
+
+CAPTION_KEYS = ('box', 'text', 'size', 'words', 'y')
+
+
+def revise(cfg, job, root):
+    """Several changes in one reply, rendered as a new version. Says plainly what it could not do."""
+    from connectors import finish as studio_finish, styles as studio_styles
+    folder = root / job['id']
+    folder.mkdir(exist_ok=False)
+    parent = json.loads((root / job['parent'] / 'result.json').read_text())
+    recipe = json.loads(Path(parent['recipe']).read_text()) if parent.get('recipe') else {}
+    e = job['edit']
+    letters = {o['option']: o['style'] for o in (parent.get('options') or [])}
+    def pick(v):
+        v = str(v).strip()
+        return letters.get(v.upper(), v) if len(v) == 1 else v
+    base = pick(e['style']) if 'style' in e else parent.get('style', 'hermes-dither')
+    st = dict(studio_styles.get(base))
+    changed, skipped = [f'style {base}'], []
+    if 'captions_from' in e:
+        src = studio_styles.get(pick(e['captions_from']))
+        st.update({k: src[k] for k in CAPTION_KEYS}); changed.append(f"captions from {pick(e['captions_from'])}")
+    start = float(recipe.get('start_at') or 0) + float(e.get('trim_start') or 0)
+    if e.get('trim_start'):
+        changed.append(f"opening tightened by {e['trim_start']} s")
+    intro = float(recipe.get('intro_seconds') or 1.6)
+    if e.get('punchier'):
+        intro = max(0.6, intro - 0.6); changed.append(f'shorter, punchier intro ({intro:.1f} s)')
+    title = str(e.get('title') or parent.get('title') or '')
+    if e.get('title'):
+        changed.append('new title')
+    if e.get('quieter_music'):
+        layout = studio_finish.audio_layout(parent['source'])
+        skipped.append('quieter music: ' + (layout['note'] if layout['streams'] == 1 else 'no separate music track in this source'))
+    r = studio_finish.finish(parent['source'], folder / 'revised', title=title, words=recipe.get('words'), style=st,
+                             intro_seconds=intro, start_at=start)
+    return 'completed', {'state': 'revised', 'style': base, 'changed': changed, 'skipped': skipped, 'title': title,
+                         'preview': r['output'], 'preview_sha256': _sha(r['output']), 'recipe': r['recipe'], 'captions': r['captions'],
+                         'source': parent['source'], 'options': parent.get('options'),
+                         'revision': int(parent.get('revision') or 0) + 1, 'project_id': parent.get('project_id')}
 
 
 def say(cfg, job, text, bind=False):
@@ -208,6 +262,8 @@ def main():
         for job in remote(cfg, {'op': 'pending'}):
             if a.deliver_ready and job['action'] == 'approve':
                 say(cfg, job, 'Approved. Generating the shot now; this can take a few minutes.')
+            if a.deliver_ready and job['action'] == 'revise':
+                say(cfg, job, 'Working on your changes. The previous version stays as it is.')
             if a.deliver_ready and job['action'] in ('alternatives', 'finish'):
                 say(cfg, job, 'Got it. Transcribing and designing your edit now. About a minute.' if job['action'] == 'alternatives'
                     else f"Rendering the full short in style {job.get('style')}. About a minute.")
@@ -215,14 +271,15 @@ def main():
                 state, result = process(cfg, job, lambda identity: remote(cfg, {'op': 'attachment', 'id': identity}))
             except Exception as e:
                 state, result = 'failed', {'error': str(e)}
-            if job['action'] in ('alternatives', 'finish', 'generate', 'approve') and state == 'completed':
+            quote_message = result.pop('quote_message', None) if isinstance(result, dict) else None
+            if job['action'] in ('alternatives', 'finish', 'generate', 'approve', 'revise') and state == 'completed':
                 atomic(root / job['id'] / 'result.json', result)
             remote(cfg, {'op': 'finish', 'id': job['id'], 'state': state, 'result': result})
             print(json.dumps({'id': job['id'], 'state': state, 'result': result}))
-            if a.deliver_ready and state == 'failed' and job['action'] in ('alternatives', 'finish', 'generate', 'approve'):
+            if a.deliver_ready and state == 'failed' and job['action'] in ('alternatives', 'finish', 'generate', 'approve', 'revise'):
                 say(cfg, job, 'That did not work: ' + str(result.get('error', ''))[:200] + ' Nothing earlier was overwritten.')
             if a.deliver_ready and state=='completed' and result.get('state')=='awaiting_approval':
-                say(cfg, job, result['quote']['message'], bind=True)
+                say(cfg, job, quote_message, bind=True)
                 continue
             if a.deliver_ready and state=='completed' and result.get('options') and result.get('state')=='alternatives_ready':
                 for o in result['options']:

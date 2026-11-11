@@ -235,7 +235,7 @@ def render_sfx(hits, cut_at, total, path):
 AUDIO_FIX = 'highpass=f=80,afftdn=nf=-25,loudnorm=I=-14:TP=-1.5:LRA=11'
 
 
-def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_seconds=1.6, music_db=-20, style='hermes-dither', max_seconds=None, overwrite=False):
+def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_seconds=1.6, music_db=-20, style='hermes-dither', max_seconds=None, overwrite=False, start_at=0.0):
     raw = Path(raw).expanduser().resolve(strict=True)
     out = Path(out_dir).expanduser(); out.mkdir(parents=True, exist_ok=True)
     if (out / 'final.mp4').exists() and not overwrite:
@@ -243,9 +243,18 @@ def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_sec
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         st = _styles.get(style)
-        dur = _duration(raw) if not max_seconds else min(_duration(raw), max_seconds)
         if words is None:
             words = transcribe_words(raw, model, tmp) if _has_audio(raw) else []
+        all_words = words
+        original = raw
+        if start_at and start_at > 0:
+            # tighten the opening: cut the first seconds, keep word timing in step
+            trimmed = tmp / 'trimmed.mp4'
+            _run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', f'{start_at:.3f}', '-i', str(raw), '-c:v', 'libx264', '-crf', '16',
+                  '-pix_fmt', 'yuv420p', '-c:a', 'aac', str(trimmed)])
+            raw = trimmed
+            words = [dict(w, start=w['start'] - start_at, end=w['end'] - start_at) for w in words if w['start'] >= start_at]
+        dur = _duration(raw) if not max_seconds else min(_duration(raw), max_seconds)
         words = [w for w in words if w['start'] < dur]
         chunks = chunk_words(words, max_words=st['words'])
         title = title or hook_title(words) or 'HERMES STUDIO'
@@ -283,13 +292,13 @@ def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_sec
               '-map', '[v]', '-map', '[a]', '-t', f'{total:.3f}', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p',
               '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(final)])
         srt = write_srt(chunks, out / 'captions.srt', offset=intro_seconds)
-        recipe = {'source': str(raw), 'title': title, 'style': style if isinstance(style, str) else st, 'intro_seconds': intro_seconds, 'audio_fix': AUDIO_FIX,
+        recipe = {'source': str(original), 'start_at': start_at, 'words': all_words, 'title': title, 'style': style if isinstance(style, str) else st, 'intro_seconds': intro_seconds, 'audio_fix': AUDIO_FIX,
                   'music': str(music) if music else None, 'music_db': music_db, 'chunks': chunks,
                   'sound_design': {'whoosh_at': hits, 'sub_hit_at': intro_seconds}, 'output': str(final)}
         (out / 'finish.json').write_text(json.dumps(recipe, indent=1))
     return {'ok': True, 'output': str(final), 'captions': srt, 'recipe': str(out / 'finish.json'),
             'kind': 'rendered short + re-runnable recipe (finish.json); not a native .vproj editor project',
-            'audio': audio_layout(raw),
+            'audio': audio_layout(original),
             'seconds': round(_duration(final), 2), 'subtitle_chunks': len(chunks)}
 
 
