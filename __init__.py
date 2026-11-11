@@ -71,3 +71,41 @@ def register(ctx):
         'output_dir':{'type':'string'},'crop_box':{'type':'array','items':{'type':'integer'},'minItems':4,'maxItems':4},'render':{'type':'boolean','default':False},'review':{'type':'string'}},
        ['source','start','end','title','captions','output_dir'])]:
         ctx.register_tool(name=name,toolset='hermes_studio',schema={'name':name,'description':description,'parameters':{'type':'object','properties':properties,'required':required,'additionalProperties':False}},handler=handler)
+
+    from . import connectors as _cx
+
+    def connectors_handler(args, **kwargs):
+        return json.dumps({'ok': True, 'connectors': _cx.describe(args.get('group'))})
+
+    def timeline_handler(args, **kwargs):
+        try:
+            tl = _cx.Timeline.from_dict(args['timeline'])
+            out = Path(args['output_dir']).expanduser(); out.mkdir(parents=True, exist_ok=True)
+            base = out / (tl.name or 'timeline')
+            result = {'ok': True, 'cuts': len(tl.cuts), 'seconds': round(tl.duration, 3), 'files': {}}
+            for fmt in args.get('formats', ['otio']):
+                if fmt == 'otio': result['files']['otio'] = _cx.write_otio(tl, f'{base}.otio')
+                elif fmt == 'fcpxml': result['files']['fcpxml'] = _cx.write_fcpxml(tl, f'{base}.fcpxml')
+                else: raise ValueError(f'unknown format {fmt}')
+            if args.get('render', False):
+                result['files']['mp4'] = _cx.ffmpeg_render.render(tl, f'{base}.mp4')
+                result['gate'] = studio_gate(result['files']['mp4'], args.get('review'))
+            return json.dumps(result)
+        except Exception as exc:
+            return json.dumps({'ok': False, 'error': str(exc)})
+
+    def generate_handler(args, **kwargs):
+        try: return json.dumps(_cx.generate.plan(args['provider'], args['prompt'], args.get('kind', 'video'), args.get('seconds', 5)))
+        except Exception as exc: return json.dumps({'ok': False, 'error': str(exc)})
+
+    _cut = {'type': 'object', 'properties': {'source': {'type': 'string'}, 'start': {'type': 'number'}, 'end': {'type': 'number'}, 'name': {'type': 'string'}}, 'required': ['source', 'start', 'end']}
+    for name, handler, description, properties, required in [
+        ('studio_connectors', connectors_handler, 'List every editor, motion, generation, audio and review connector with its real status (working, export only, dry run, planned).',
+         {'group': {'type': 'string', 'enum': ['editor', 'motion', 'generate', 'audio', 'review']}}, []),
+        ('studio_timeline', timeline_handler, 'Write one shared timeline as OpenTimelineIO and/or FCPXML (Final Cut, Resolve), and optionally render it locally with FFmpeg then run the studio gate.',
+         {'timeline': {'type': 'object', 'properties': {'name': {'type': 'string'}, 'fps': {'type': 'number'}, 'width': {'type': 'integer'}, 'height': {'type': 'integer'}, 'cuts': {'type': 'array', 'items': _cut}}, 'required': ['name', 'cuts']},
+          'output_dir': {'type': 'string'}, 'formats': {'type': 'array', 'items': {'type': 'string', 'enum': ['otio', 'fcpxml']}}, 'render': {'type': 'boolean', 'default': False}, 'review': {'type': 'string'}},
+         ['timeline', 'output_dir']),
+        ('studio_generate', generate_handler, 'Plan a generation request (Higgsfield first). Dry run only: never sends, never spends.',
+         {'provider': {'type': 'string'}, 'prompt': {'type': 'string'}, 'kind': {'type': 'string'}, 'seconds': {'type': 'number'}}, ['provider', 'prompt'])]:
+        ctx.register_tool(name=name, toolset='hermes_studio', schema={'name': name, 'description': description, 'parameters': {'type': 'object', 'properties': properties, 'required': required, 'additionalProperties': False}}, handler=handler)
