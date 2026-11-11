@@ -1,0 +1,11 @@
+{
+  "ssh_host": "your-vps-alias",
+  "remote_python": "/path/to/hermes/python",
+  "remote_rpc": "/path/to/hermes-studio/bridge_rpc.py",
+  "remote_queue": "/path/to/hermes-home/studio-channel",
+  "workspace": "/path/to/workstation-jobs",
+  "library_roots": [
+    "/path/to/your-media"
+  ],
+  "reviewed_projects": []
+}

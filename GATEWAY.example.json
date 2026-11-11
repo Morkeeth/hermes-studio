@@ -1,0 +1,10 @@
+{
+  "inbound_roots": [
+    "/path/to/hermes-home/cache/videos"
+  ],
+  "delivery_chat_id": "YOUR_CONFIRMED_CHAT_ID",
+  "allowed_chat_ids": [
+    "YOUR_CONFIRMED_CHAT_ID"
+  ],
+  "gateway_env_file": "/path/to/hermes-home/.env"
+}

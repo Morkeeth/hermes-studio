@@ -1,0 +1,7 @@
+name: hermes-studio
+version: 0.4.0
+requires_hermes: ">=0.21.5"
+description: Take to Short using local transcription, existing editing tools, and explicit quality checks.
+provides_tools: [studio_take, studio_cut, studio_gate, studio_verify_post, studio_library, studio_build, studio_request, studio_status]
+capabilities: []
+python_dependencies: []
