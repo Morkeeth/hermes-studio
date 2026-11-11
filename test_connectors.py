@@ -151,6 +151,11 @@ class Finish(unittest.TestCase):
             self.assertIn('00:00:01,200', srt)  # subtitles shifted past the intro
             self.assertEqual(r['subtitle_chunks'], 2)
 
+    def test_chunks_carry_word_timing_for_the_highlight(self):
+        c = cx.finish.chunk_words([{'text': 'a', 'start': 0.1, 'end': 0.3}, {'text': 'b', 'start': 0.3, 'end': 0.6}])
+        self.assertEqual([w['start'] for w in c[0]['words']], [0.1, 0.3])
+        self.assertIn('highlight', cx.styles.get('hermes-dither'))
+
     def test_chunks_never_linger(self):
         c = cx.finish.chunk_words([{'text': 'end', 'start': 1.0, 'end': 9.0}])
         self.assertLess(c[0]['end'], 2.2)

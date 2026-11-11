@@ -97,7 +97,8 @@ def chunk_words(words, max_words=3, max_gap=0.35):
     for c in chunks:
         start = c[0]['start']
         cap = start + 0.6 + 0.45 * len(c)  # never hold a chunk longer than it takes to read it
-        out.append({'text': ' '.join(w['text'] for w in c), 'start': start, 'end': min(max(c[-1]['end'], start + 0.3), cap)})
+        out.append({'text': ' '.join(w['text'] for w in c), 'start': start, 'end': min(max(c[-1]['end'], start + 0.3), cap),
+                    'words': [{'text': w['text'], 'start': w['start']} for w in c]})
     return out
 
 
@@ -208,7 +209,22 @@ def render_caption_strip(chunks, duration, strip_h, frames_dir, st=None):
         x = (W - tw) / 2; y = (strip_h - fs.size) / 2
         if st['box'] is not None:
             d.rounded_rectangle([x - 26, y - 14, x + tw + 26, y + fs.size + 10], radius=20, fill=tuple(st['box']) + (int(235 * p),))
-        d.text((x, y), text, font=fs, fill=tuple(st['text']) + (int(255 * p),))
+        ws = c.get('words') or []
+        if st.get('highlight') and len(ws) > 1:
+            # karaoke: the word being spoken lights up; the rest of the chunk stays readable but quieter
+            cx = x
+            active = max((i for i, w in enumerate(ws) if w['start'] <= t), default=0)
+            for i, w in enumerate(ws):
+                word = w['text'].upper()
+                ww = d.textlength(word, font=fs)
+                if i == active:
+                    d.rounded_rectangle([cx - 8, y - 4, cx + ww + 8, y + fs.size + 2], radius=12, fill=tuple(st['highlight']) + (int(255 * p),))
+                    d.text((cx, y), word, font=fs, fill=tuple(st.get('highlight_text', st['text'])) + (int(255 * p),))
+                else:
+                    d.text((cx, y), word, font=fs, fill=tuple(st['text']) + (int(170 * p),))
+                cx += ww + d.textlength(' ', font=fs)
+        else:
+            d.text((x, y), text, font=fs, fill=tuple(st['text']) + (int(255 * p),))
         im.save(Path(frames_dir) / f'c{k:05}.png')
     return total
 

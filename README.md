@@ -55,7 +55,7 @@ Status, in one place: `studio_finish` and the style alternatives render on the w
 
 One call, all local:
 
-- **Subtitles:** word-timed with whisper.cpp, 1 to 3 words at a time, popping in a blue box. Also written as `captions.srt`.
+- **Subtitles:** word-timed with whisper.cpp, 1 to 4 words at a time, with the word being spoken lit up karaoke-style. Also written as `captions.srt`.
 - **Audio repair:** rumble cut, noise reduction, loudness to -14 LUFS.
 - **Kinetic intro:** title words slam in over a blue-dithered first frame.
 - **Sound design:** a whoosh into every title word, a sub hit on the cut into the footage.
@@ -123,7 +123,7 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 66 run, 63 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
+**Tests:** 67 run, 64 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
 
 ### Next: one extraordinary edit, then the whole studio
 

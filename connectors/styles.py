@@ -11,9 +11,11 @@ from PIL import Image
 
 STYLES = {
     'hermes-dither': {'label': 'Hermes dither', 'intro_dark': (20, 20, 220), 'intro_light': (70, 70, 255),
-                      'box': (26, 26, 240), 'text': (255, 255, 255), 'size': 110, 'words': 3, 'y': 0.80},
+                      'box': (26, 26, 240), 'text': (255, 255, 255), 'size': 110, 'words': 3, 'y': 0.80,
+                      'highlight': (255, 255, 255), 'highlight_text': (26, 26, 240)},
     'clean-short': {'label': 'Clean short', 'intro_dark': (12, 12, 12), 'intro_light': (235, 235, 235),
-                    'box': (12, 12, 12), 'text': (255, 255, 255), 'size': 92, 'words': 4, 'y': 0.82},
+                    'box': (12, 12, 12), 'text': (255, 255, 255), 'size': 92, 'words': 4, 'y': 0.82,
+                    'highlight': (255, 214, 0), 'highlight_text': (12, 12, 12)},
     'brain-rot': {'label': 'Brain rot', 'intro_dark': (5, 5, 5), 'intro_light': (255, 228, 0),
                   'box': (0, 0, 0), 'text': (255, 228, 0), 'size': 170, 'words': 1, 'y': 0.50},
     'mono-kinetic': {'label': 'Mono kinetic', 'intro_dark': (0, 0, 0), 'intro_light': (255, 255, 255),
