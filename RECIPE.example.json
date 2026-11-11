@@ -1,0 +1,16 @@
+{
+  "source": "/path/to/camera/clip.mp4",
+  "source_sha256": "REPLACE_WITH_ORIGINAL_SOURCE_SHA256",
+  "camera_folder": "/path/to/camera",
+  "model": "/path/to/existing/ggml-model.bin",
+  "library_roots": [
+    "/path/to/media-library"
+  ],
+  "music_query": "ambient",
+  "music_sha256": "REPLACE_WITH_SELECTED_TRACK_SHA256",
+  "music_license_scope": "Record your actual permitted use; filename presence does not establish rights",
+  "template_project": "/path/to/reviewed-native-project.vproj.json",
+  "template_sha256": "REPLACE_WITH_REVIEWED_PROJECT_SHA256",
+  "alignment_proof": "/path/to/actual-word-alignment.json",
+  "motion_skill": "https://github.com/LottieFiles/motion-design-skill"
+}

@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
-from channel import request, atomic
+from channel import request, atomic, status
 from connector_worker import process
 from telegram_delivery import send_preview
 
@@ -72,6 +72,18 @@ class ChannelTests(unittest.TestCase):
         with mock.patch('urllib.request.urlopen') as opened:
             with self.assertRaises(ValueError):send_preview(self.source,'bad',{},self.root/'receipt.json')
             opened.assert_not_called()
+
+    def test_actual_delivery_reply_resolves_parent_and_rejects_other_chat(self):
+        atomic(self.root/'config.json',{'inbound_roots':[str(self.media)],'delivery_chat_id':'123'})
+        job=request(dict(action='prepare',request_key='parent',source=str(self.source)),self.root)
+        obj=dict(job,state='completed',result={'project_id':job['id'],'revision':0},delivery={'state':'sent','chat_id':123,'message_id':45,'sha256':job['source_sha256']})
+        atomic(self.root/'jobs'/(job['id']+'.json'),obj)
+        self.assertEqual(status(None,self.root,45)['id'],job['id'])
+        self.assertEqual(status(None,self.root,source=str(self.source))['id'],job['id'])
+        edit=request(dict(action='edit',request_key='reply',reply_to_message_id=45,edit={'music_gain_db':-28}),self.root)
+        self.assertEqual(edit['parent'],job['id']);self.assertEqual(edit['base_revision'],0)
+        obj['delivery']['chat_id']=999;atomic(self.root/'jobs'/(job['id']+'.json'),obj)
+        with self.assertRaises(ValueError):status(None,self.root,45)
 
 
 if __name__=='__main__':unittest.main()

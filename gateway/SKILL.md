@@ -15,3 +15,7 @@ To revise a known project use action edit and parent set to its completed prepar
 Preview delivery is a separate authorized worker action; no Telegram token or API key goes to the worker/model. Do not run another Telegram poller. A sent receipt confirms Telegram acceptance, not playback on a phone. One reply edit needs an actual user reply and matching parent, not a simulated conversation.
 
 Never render outside the existing render gate, call paid providers, publish publicly, invent review/rights, or claim every catalog animation tool is installed. The shared native project is the truth; the editor is optional for detailed human control.
+
+For a real reply to a delivered preview, use studio_status(reply_to_message_id=<actual replied-to Telegram message ID>) to resolve the parent project. Or pass that actual ID to studio_request with action edit. Never guess an ID. Only a confirmed delivery in the configured owner chat resolves; stale revisions fail instead of overwriting edits.
+
+If the host does not expose the replied-to message ID, pass the actual cached replied-video source to studio_status (or to studio_request action edit). It hashes that real attachment and requires a unique matching confirmed delivery in the owner chat. Never infer a match from filename or a similar-looking clip; ambiguity fails.

@@ -9,8 +9,8 @@ def register(ctx):
         try:return json.dumps(request(args))
         except Exception as exc:return json.dumps({'ok':False,'error':str(exc)})
     def read(args,**kwargs):
-        try:return json.dumps(status(args['job']))
+        try:return json.dumps(status(args.get('job'),reply_to_message_id=args.get('reply_to_message_id'),source=args.get('source')))
         except Exception as exc:return json.dumps({'ok':False,'error':str(exc)})
-    props={'action':{'type':'string','enum':['library','prepare','edit','preview']},'request_key':{'type':'string'},'source':{'type':'string'},'query':{'type':'string'},'parent':{'type':'string'},'project_id':{'type':'string'},'edit':{'type':'object','properties':{'music_gain_db':{'type':'number'}},'additionalProperties':False}}
-    for name,handler,properties,required in [('studio_request',submit,props,['action','request_key']),('studio_status',read,{'job':{'type':'string'}},['job'])]:
+    props={'action':{'type':'string','enum':['library','prepare','edit','preview']},'request_key':{'type':'string'},'source':{'type':'string'},'query':{'type':'string'},'parent':{'type':'string'},'reply_to_message_id':{'type':'integer'},'project_id':{'type':'string'},'edit':{'type':'object','properties':{'music_gain_db':{'type':'number'}},'additionalProperties':False}}
+    for name,handler,properties,required in [('studio_request',submit,props,['action','request_key']),('studio_status',read,{'job':{'type':'string'},'reply_to_message_id':{'type':'integer'},'source':{'type':'string'}},[])]:
         ctx.register_tool(name=name,toolset='hermes_studio_bridge',schema={'name':name,'description':'Queue or inspect an actual Studio workstation request. Queueing is not an export or delivery. Read the channel-flow skill first.','parameters':{'type':'object','properties':properties,'required':required,'additionalProperties':False}},handler=handler)

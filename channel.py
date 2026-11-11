@@ -56,6 +56,13 @@ def request(args, root=None):
     parent = None
     if args.get('parent'):
         parent = json.loads(job_path(root, args['parent']).read_text())
+    if args.get('reply_to_message_id') is not None:
+        replied=status(None,root,args['reply_to_message_id'])
+        if parent and parent['id']!=replied['id']:
+            raise ValueError('Parent does not match the actual delivered reply target')
+        parent=replied
+    if action=='edit' and not parent and args.get('source'):
+        parent=status(None,root,source=args['source'])
     if action == 'edit' and (not parent or not parent.get('result', {}).get('project_id')):
         raise ValueError('Reply edits need a completed parent job with a real project')
     edit = args.get('edit', {})
@@ -97,5 +104,22 @@ def request(args, root=None):
     return obj
 
 
-def status(identity, root=None):
-    return json.loads(job_path(Path(root) if root else queue_root(), identity).read_text())
+def status(identity=None, root=None, reply_to_message_id=None, source=None):
+    root=Path(root) if root else queue_root()
+    if reply_to_message_id is not None or source:
+        if reply_to_message_id is not None and (type(reply_to_message_id) is not int or reply_to_message_id<1):
+            raise ValueError('Supply the actual positive replied-to Telegram message ID')
+        checksum=hashlib.sha256(allowed_file(source,config(root)['inbound_roots']).read_bytes()).hexdigest() if source else None
+        chat=str(config(root)['delivery_chat_id']);matches=[]
+        for path in (root/'jobs').glob('*.json'):
+            job=json.loads(path.read_text());delivery=job.get('delivery',{})
+            bound=(reply_to_message_id is None or delivery.get('message_id')==reply_to_message_id) and (checksum is None or delivery.get('sha256')==checksum)
+            if delivery.get('state')=='sent' and bound and str(delivery.get('chat_id'))==chat:
+                matches.append(job)
+        if len(matches)!=1:
+            raise ValueError('No unique delivered project matches this reply')
+        if identity and matches[0]['id']!=identity:
+            raise ValueError('Job does not match reply target')
+        return matches[0]
+    if not identity:raise ValueError('Supply job, actual reply_to_message_id, or cached replied-video source')
+    return json.loads(job_path(root, identity).read_text())

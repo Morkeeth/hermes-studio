@@ -22,13 +22,13 @@ def register(ctx):
         except Exception as exc:return json.dumps({'ok':False,'error':str(exc)})
 
     def status_handler(args, **kwargs):
-        try:return json.dumps(channel_status(args['job']))
+        try:return json.dumps(channel_status(args.get('job'),reply_to_message_id=args.get('reply_to_message_id'),source=args.get('source')))
         except Exception as exc:return json.dumps({'ok':False,'error':str(exc)})
 
     for name,handler,description,properties,required in [
       ('studio_request',channel_handler,'Queue a conversation request for the configured local workstation. No render or delivery is implied by queueing. Use prepare with an actual downloaded attachment, library, preview, or an explicit music-level edit on a parent project.',
-       {'action':{'type':'string','enum':['library','prepare','edit','preview']},'request_key':{'type':'string'},'source':{'type':'string'},'query':{'type':'string'},'parent':{'type':'string'},'project_id':{'type':'string'},'edit':{'type':'object','properties':{'music_gain_db':{'type':'number'}},'additionalProperties':False}},['action','request_key']),
-      ('studio_status',status_handler,'Read actual queued job state. queued and awaiting_render_gate are not completed exports.',{'job':{'type':'string'}},['job'])]:
+       {'action':{'type':'string','enum':['library','prepare','edit','preview']},'request_key':{'type':'string'},'source':{'type':'string'},'query':{'type':'string'},'parent':{'type':'string'},'reply_to_message_id':{'type':'integer'},'project_id':{'type':'string'},'edit':{'type':'object','properties':{'music_gain_db':{'type':'number'}},'additionalProperties':False}},['action','request_key']),
+      ('studio_status',status_handler,'Read actual queued job or resolve an actual replied-to Telegram preview. queued and awaiting_render_gate are not completed exports.',{'job':{'type':'string'},'reply_to_message_id':{'type':'integer'},'source':{'type':'string'}},[])]:
         ctx.register_tool(name=name,toolset='hermes_studio',schema={'name':name,'description':description,'parameters':{'type':'object','properties':properties,'required':required,'additionalProperties':False}},handler=handler)
     for name,handler,description,properties,required in [
         ('studio_gate',gate_handler,'Check a finished short with FFmpeg and hash-bound visual review.',{'video':{'type':'string'},'review':{'type':'string'}},['video']),
