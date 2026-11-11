@@ -1,6 +1,7 @@
 """Compose existing editor tools through Hermes's public dispatch surface."""
 import json
 import math
+import os
 from pathlib import Path
 
 
@@ -53,6 +54,8 @@ def prepare_cut(source, start, end, title, captions, output_dir, crop_box=None):
 
 def execute_cut(plan, dispatch):
     """Call installed editor handlers in order; stop on any failure. No repair loops."""
+    if not os.environ.get('HELICON_RENDER_BRIEF'):
+        raise ValueError('Render must be dispatched through the existing render gate')
     output=Path(plan['captions']).parent
     events=[];previous=None
     try:

@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('workflow_core',HERE/'workflow.py');w=importlib.util.module_from_spec(spec);spec.loader.exec_module(w)
@@ -30,7 +31,7 @@ class WorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=HERE) as tmp:
             plan=self.prepare(tmp);calls=[]
             def dispatch(name,args):calls.append(name);return json.dumps({'ok':False,'error':'editor missing'})
-            with self.assertRaises(RuntimeError):w.execute_cut(plan,dispatch)
+            with mock.patch.dict('os.environ',{'HELICON_RENDER_BRIEF':'mocked-dispatch-only'}),self.assertRaises(RuntimeError):w.execute_cut(plan,dispatch)
             self.assertEqual(calls,['lk_trim'])
             self.assertEqual(len(json.loads((Path(plan['captions']).parent/'editor-calls.json').read_text())),1)
     def test_chain_uses_actual_outputs(self):
@@ -39,11 +40,16 @@ class WorkflowTests(unittest.TestCase):
             def dispatch(name,args):
                 if calls:self.assertEqual(args['input'],calls[-1])
                 output=Path(args['output']);output.write_bytes(b'video');calls.append(str(output));return json.dumps({'ok':True,'output':str(output)})
-            result=w.execute_cut(plan,dispatch)
+            with mock.patch.dict('os.environ',{'HELICON_RENDER_BRIEF':'mocked-dispatch-only'}):result=w.execute_cut(plan,dispatch)
             self.assertTrue(result['ok']);self.assertTrue(result['review_required']);self.assertEqual(len(calls),5)
     def test_unique_job_never_overwrites(self):
         with tempfile.TemporaryDirectory(dir=HERE) as tmp:
             self.prepare(tmp)
             with self.assertRaises(FileExistsError):self.prepare(tmp)
+    def test_ungated_request_never_invokes_editor(self):
+        with tempfile.TemporaryDirectory(dir=HERE) as tmp,mock.patch.dict('os.environ',{},clear=True):
+            plan=self.prepare(tmp);dispatch=mock.Mock()
+            with self.assertRaises(ValueError):w.execute_cut(plan,dispatch)
+            dispatch.assert_not_called()
 
 if __name__=='__main__':unittest.main()
