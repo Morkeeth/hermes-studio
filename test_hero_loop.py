@@ -123,5 +123,25 @@ class Conversation(unittest.TestCase):
             self.assertEqual(st.call_args[0][0], 'ready')
 
 
+class MusicBed(unittest.TestCase):
+    def test_quieter_music_is_real_when_a_bed_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp); ws = tmp / 'ws'; ws.mkdir()
+            raw = make_clip(tmp / 'raw.mp4')
+            bed = tmp / 'bed.m4a'
+            subprocess.run(['ffmpeg', '-nostdin', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=220:duration=8', '-c:a', 'aac', str(bed)], check=True)
+            from connectors import finish
+            fin = finish.finish(raw, tmp / 'fin', title='t', words=[{'text': 'hi', 'start': 0.2, 'end': 0.5}], style='hermes-dither', music=str(bed), music_db=-20)
+            (ws / ('p' * 32)).mkdir()
+            connector_worker.atomic(ws / ('p' * 32) / 'result.json', {'state': 'finished', 'style': 'hermes-dither', 'source': str(raw),
+                                                                       'recipe': fin['recipe'], 'preview': fin['output'], 'revision': 1})
+            job = {'id': 'q' * 32, 'action': 'revise', 'parent': 'p' * 32, 'edit': {'quieter_music': True}}
+            state, result = connector_worker.process({'workspace': str(ws)}, job, None)
+            self.assertTrue(any('6 dB quieter' in c for c in result['changed']))
+            self.assertEqual(result['skipped'], [])
+            recipe = json.loads(Path(result['recipe']).read_text())
+            self.assertEqual(recipe['music_db'], -26)
+
+
 if __name__ == '__main__':
     unittest.main()

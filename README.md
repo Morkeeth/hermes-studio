@@ -59,7 +59,7 @@ One call, all local:
 - **Audio repair:** rumble cut, noise reduction, loudness to -14 LUFS.
 - **Kinetic intro:** title words slam in over a blue-dithered first frame.
 - **Sound design:** a whoosh into every title word, a sub hit on the cut into the footage.
-- **Beat:** optional music bed, ducked under the voice.
+- **Beat:** a music bed per style from your own shelf (set in the worker config, never picked by Studio), ducked under the voice. With a bed, "quieter music" is a real change.
 - **Recipe:** `finish.json` records every choice, so the pass can be re-run with changes. It is a re-runnable recipe plus a rendered MP4 and SRT, not a native editor project. Earlier renders are never overwritten.
 - **Mixed audio, said plainly:** if speech and music share one track, Studio cleans and levels the whole mix and says it cannot turn the original music down on its own. A new music bed is fully adjustable.
 
@@ -123,7 +123,7 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 67 run, 64 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
+**Tests:** 68 run, 65 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
 
 ### Next: one extraordinary edit, then the whole studio
 

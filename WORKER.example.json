@@ -9,5 +9,10 @@
   ],
   "reviewed_projects": [],
   "remote_prefix": [],
-  "whisper_model": "/path/to/ggml-large-v3-turbo.bin"
+  "whisper_model": "/path/to/ggml-large-v3-turbo.bin",
+  "music_beds": {
+    "brain-rot": "/path/to/energetic-track.mp3",
+    "clean-short": "/path/to/steady-track.m4a",
+    "hermes-dither": "/path/to/uplifting-track.m4a"
+  }
 }

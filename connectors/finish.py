@@ -318,7 +318,7 @@ def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_sec
             'seconds': round(_duration(final), 2), 'subtitle_chunks': len(chunks)}
 
 
-def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-short', 'brain-rot', 'hermes-dither'), seconds=10.0):
+def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-short', 'brain-rot', 'hermes-dither'), seconds=10.0, music_beds=None):
     """Render the same opening in several styles so Hermes can offer A/B/C in the chat."""
     raw = Path(raw).expanduser().resolve(strict=True)
     out = Path(out_dir).expanduser(); out.mkdir(parents=True, exist_ok=True)
@@ -327,7 +327,9 @@ def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-
             words = transcribe_words(raw, model, tmp) if _has_audio(raw) else []
     options = []
     for letter, name in zip('ABCDEFG', styles):
-        r = finish(raw, out / f'{letter}-{name}', title=title, words=words, style=name, max_seconds=seconds, intro_seconds=1.2)
+        bed = (music_beds or {}).get(name)
+        r = finish(raw, out / f'{letter}-{name}', title=title, words=words, style=name, max_seconds=seconds, intro_seconds=1.2,
+                   music=bed, music_db=_styles.get(name).get('music_db', -20))
         options.append({'option': letter, 'style': name, 'label': _styles.get(name)['label'], 'preview': r['output']})
     return {'ok': True, 'question': 'Pick a style: ' + ', '.join(f"{o['option']} {o['label']}" for o in options), 'options': options,
             'title': title or hook_title(words), 'transcript': ' '.join(w['text'] for w in words)[:400],
