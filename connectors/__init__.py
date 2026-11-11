@@ -7,7 +7,7 @@ CONNECTORS = [
     # group, name, status, route
     ('editor', 'ffmpeg', 'working', 'local render of the shared timeline'),
     ('editor', 'opentimelineio', 'working', 'OTIO JSON export and import; the hub every editor goes through'),
-    ('editor', 'final-cut-pro', 'export only', 'FCPXML 1.10 export; import back via OTIO'),
+    ('editor', 'final-cut-pro', 'export only', 'FCPXML 1.10 export, valid against the DTD that ships inside Final Cut Pro; import back via OTIO'),
     ('editor', 'davinci-resolve', 'export only', 'imports the same FCPXML or OTIO; scripting API not wired'),
     ('editor', 'premiere-pro', 'planned', 'OTIO or XML interchange; needs a licence to test'),
     ('editor', 'hermes-video-editor', 'working', 'existing studio_cut tools'),

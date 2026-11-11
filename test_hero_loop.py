@@ -104,10 +104,13 @@ class HeroLoop(unittest.TestCase):
 
 class Conversation(unittest.TestCase):
     def test_wrapup_names_title_options_and_honest_limits(self):
-        text = connector_worker.wrapup({'title': 'welcome to Hermes Studio', 'options': [{'option': 'A', 'label': 'Clean short'}, {'option': 'B', 'label': 'Brain rot'}]})
+        text = connector_worker.wrapup({'title': 'welcome to Hermes Studio', 'options': [{'option': 'A', 'label': 'Clean short', 'style': 'clean-short'}, {'option': 'B', 'label': 'Brain rot', 'style': 'brain-rot'}]})
         self.assertIn('welcome to Hermes Studio', text)
         self.assertIn('B: Brain rot', text)
         self.assertIn('cannot see whether it played', text)
+        fast = connector_worker.wrapup({'title': 't', 'options': [{'option': 'B', 'label': 'Brain rot', 'style': 'brain-rot'}],
+                                        'editor_note': {'pick': 'brain-rot', 'why': 'You talk fast.'}})
+        self.assertIn('My pick: B. You talk fast.', fast)
 
     def test_notify_goes_through_the_bridge_to_the_owner_chat_only(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,5 +1,6 @@
 import importlib
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -212,6 +213,23 @@ class Demo(unittest.TestCase):
             self.assertTrue(Path(r['finished']).is_file())
             self.assertEqual(len(r['alternatives']), 3)
             self.assertTrue(all(Path(p).is_file() for p in r['alternatives']))
+
+
+FCP_DTD = Path('/Applications/Final Cut Pro.app/Contents/Frameworks/Interchange.framework/Versions/A/Resources/FCPXMLv1_10.dtd')
+
+
+class FinalCutSchema(unittest.TestCase):
+    @unittest.skipUnless(FCP_DTD.is_file() and shutil.which('xmllint'), 'Final Cut Pro not installed here')
+    def test_export_is_valid_against_final_cuts_own_dtd_and_the_check_can_fail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dtd = Path(tmp) / 'fcpxml.dtd'; dtd.write_bytes(FCP_DTD.read_bytes())  # xmllint cannot read a DTD path with spaces
+            tl = sample(tmp)
+            good = Path(tmp) / 'good.fcpxml'; cx.write_fcpxml(tl, good)
+            r = subprocess.run(['xmllint', '--noout', '--dtdvalid', str(dtd), str(good)], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            bad = Path(tmp) / 'bad.fcpxml'; bad.write_text(good.read_text().replace('<spine>', '<spine><bogus/>'))
+            r = subprocess.run(['xmllint', '--noout', '--dtdvalid', str(dtd), str(bad)], capture_output=True, text=True)
+            self.assertNotEqual(r.returncode, 0)
 
 
 if __name__ == '__main__':

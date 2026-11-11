@@ -139,7 +139,7 @@ def creative(cfg, job, fetch, root):
             o['preview_sha256'] = _sha(o['preview'])
         return 'completed', {'state': 'alternatives_ready', 'source': str(source), 'options': r['options'],
                              'question': r['question'], 'project_id': job['id'], 'title': job.get('title') or r.get('title', ''),
-                             'transcript': r.get('transcript', '')}
+                             'transcript': r.get('transcript', ''), 'editor_note': r.get('editor_note')}
     # finish: the source and offered options come from the replied-to parent job, or from a new attachment
     parent = json.loads((root / job['parent'] / 'result.json').read_text()) if job.get('parent') else None
     source = Path(parent['source']) if parent else _receive(job, fetch, folder)
@@ -243,7 +243,11 @@ def wrapup(result):
     lines = [f"Your three previews are ready. Title I picked from what you said: \"{result.get('title') or 'none'}\"."]
     for o in result['options']:
         lines.append(f"{o['option']}: {o['label']}")
-    lines.append('Reply to the one you like with its letter for the full finished short. Rendered and sent; I cannot see whether it played on your phone.')
+    note = result.get('editor_note') or {}
+    letter = next((o['option'] for o in result['options'] if o['style'] == note.get('pick')), None)
+    if letter:
+        lines.append(f"My pick: {letter}. {note.get('why', '')}")
+    lines.append('Reply to the one you like with its letter for the full finished short, or with changes. Rendered and sent; I cannot see whether it played on your phone.')
     return '\n'.join(lines)
 
 

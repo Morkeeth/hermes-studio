@@ -115,7 +115,7 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 |---|---|---|
 | FFmpeg render | ✅ tested | cuts, portrait frame, audio |
 | OpenTimelineIO | ✅ tested, read back by the real `opentimelineio` library | one video track of cuts. Captions, music and overlays are ❌ not carried yet |
-| Final Cut Pro (FCPXML 1.10) | ❓ file written and checked, not yet opened in Final Cut | cuts only |
+| Final Cut Pro (FCPXML 1.10) | ✅ valid against the FCPXML schema that ships inside Final Cut Pro (a broken file fails the same check); not yet imported through the app | cuts only |
 | DaVinci Resolve (FCPXML or OTIO) | ❓ not yet opened in Resolve | cuts only |
 | Premiere Pro | ❌ next | |
 | Higgsfield | ⚠️ dry run: plans a request, never sends, never spends | |
@@ -123,13 +123,13 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 65 run, 62 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
+**Tests:** 66 run, 63 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
 
 ### Next: one extraordinary edit, then the whole studio
 
 Two reviews shaped this plan: the creator's ambition (every connector, every skill, any model) and Hermes' own critique (prove one complete creative outcome first). They fit together:
 
-1. **The hero moment, now wired (v0.7.0).** Send fresh raw footage in Telegram: Hermes queues `alternatives`, the workstation renders A clean short, B brain rot and C Hermes dither and sends each as its own message. Reply with a letter: `finish` sends back the full finished short in that style. Reply with another letter: a re-cut from the same source. `test_hero_loop.py` runs this whole loop against a fake Telegram. Next: the same loop live on the gateway.
+1. **The hero moment, now wired (v0.7.0).** Send fresh raw footage in Telegram: Hermes queues `alternatives`, the workstation renders A clean short, B brain rot and C Hermes dither and sends each as its own message. After the previews, Studio gives its own pick and why, from what it can measure (pace, how early the first words land). Reply with a letter: `finish` sends back the full finished short in that style. Reply with another letter: a re-cut from the same source. `test_hero_loop.py` runs this whole loop against a fake Telegram. Next: the same loop live on the gateway.
 2. **One real generated insert.** One provider on the user's own key, one generated shot placed in the edit, cost shown and approved first.
 3. **Reproducible by anyone.** A sample project with redistributable media and a one-command run, checked by `studio_doctor`.
 4. **Then grow without limits.** Each new connector or skill is one adapter or one registry entry, and it reports what it preserves.

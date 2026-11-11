@@ -314,7 +314,8 @@ def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-
         r = finish(raw, out / f'{letter}-{name}', title=title, words=words, style=name, max_seconds=seconds, intro_seconds=1.2)
         options.append({'option': letter, 'style': name, 'label': _styles.get(name)['label'], 'preview': r['output']})
     return {'ok': True, 'question': 'Pick a style: ' + ', '.join(f"{o['option']} {o['label']}" for o in options), 'options': options,
-            'title': title or hook_title(words), 'transcript': ' '.join(w['text'] for w in words)[:400]}
+            'title': title or hook_title(words), 'transcript': ' '.join(w['text'] for w in words)[:400],
+            'editor_note': editor_note(words)}
 
 
 def insert_shot(finished, shot, out_dir, seconds=3.0):
@@ -333,3 +334,21 @@ def insert_shot(finished, shot, out_dir, seconds=3.0):
               '-filter_complex', v, '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p',
               '-c:a', 'aac', '-movflags', '+faststart', str(dest)])
     return {'ok': True, 'output': str(dest), 'seconds': round(_duration(dest), 2)}
+
+
+def editor_note(words, duration=None):
+    """An editor's first read of the footage, from what can be measured: pace, hook timing, length.
+    It recommends one style and says why. It is a starting opinion, not a taste judgement."""
+    if not words:
+        return {'pick': 'clean-short', 'why': 'No speech found, so a calm clean short lets the picture carry it.'}
+    spoken = max(0.1, words[-1]['end'] - words[0]['start'])
+    pace = len(words) / spoken
+    first = words[0]['start']
+    hook = hook_title(words)
+    if pace >= 2.9:
+        pick, why = 'brain-rot', f'You talk fast ({pace:.1f} words a second), so one big word at a time keeps up with you.'
+    elif first > 1.5:
+        pick, why = 'hermes-dither', f'The first words come late ({first:.1f} s in), so a bold kinetic intro carries the opening.'
+    else:
+        pick, why = 'clean-short', f'Steady pace ({pace:.1f} words a second) and an early start, so clean captions let the words land.'
+    return {'pick': pick, 'why': why, 'hook': hook, 'pace_wps': round(pace, 2), 'first_word_s': round(first, 2)}
