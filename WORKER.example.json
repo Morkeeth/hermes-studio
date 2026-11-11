@@ -7,5 +7,6 @@
   "library_roots": [
     "/path/to/your-media"
   ],
-  "reviewed_projects": []
+  "reviewed_projects": [],
+  "remote_prefix": []
 }

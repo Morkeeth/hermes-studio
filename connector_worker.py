@@ -19,7 +19,12 @@ def remote(cfg, payload):
     host = cfg['ssh_host']
     if not re.fullmatch(r'[A-Za-z0-9_.@-]+', host) or host.startswith('-'):
         raise ValueError('Invalid configured SSH host')
-    command = shlex.join([cfg.get('remote_python', 'python3'), cfg['remote_rpc'], '--root', cfg['remote_queue']])
+    # Optional operator-configured host launcher supplies the existing profile
+    # environment. Job/model data never chooses executables or secret sources.
+    prefix=cfg.get('remote_prefix',[])
+    if not isinstance(prefix,list) or not all(isinstance(x,str) for x in prefix):
+        raise ValueError('remote_prefix must be an operator-configured argv list')
+    command = shlex.join([*prefix,cfg.get('remote_python', 'python3'), cfg['remote_rpc'], '--root', cfg['remote_queue']])
     p = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=12', host, command],
                        input=json.dumps(payload), capture_output=True, text=True, timeout=120)
     reply = json.loads(p.stdout)

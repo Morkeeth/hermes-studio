@@ -5,10 +5,14 @@ An uncertain HTTP result remains held to avoid duplicate sends.
 """
 import hashlib
 import json
-import os
 from pathlib import Path
 import urllib.request
 import uuid
+
+
+def secret_value():
+    from agent.secret_scope import get_secret
+    return get_secret('TELEGRAM_BOT_TOKEN')
 
 
 def send_preview(file, expected_sha256, cfg, receipt, caption='Your Studio preview. Reply with the change you want.'):
@@ -21,11 +25,7 @@ def send_preview(file, expected_sha256, cfg, receipt, caption='Your Studio previ
     chat = str(cfg['delivery_chat_id'])
     if chat not in [str(c) for c in cfg['allowed_chat_ids']]:
         raise ValueError('Delivery target is not explicitly allowed')
-    token = os.environ.get('TELEGRAM_BOT_TOKEN')
-    if not token:
-        # Existing host credential store; do not copy it to the worker/package.
-        from dotenv import dotenv_values
-        token = dotenv_values(cfg['gateway_env_file']).get('TELEGRAM_BOT_TOKEN')
+    token = secret_value()
     if not token:
         raise ValueError('Gateway bot token unavailable')
     receipt = Path(receipt)

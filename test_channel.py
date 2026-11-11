@@ -60,7 +60,7 @@ class ChannelTests(unittest.TestCase):
         cfg={'delivery_chat_id':'123','allowed_chat_ids':['123']}
         checksum=hashlib.sha256(self.source.read_bytes()).hexdigest()
         receipt=self.root/'delivery.json'
-        with mock.patch.dict('os.environ',{'TELEGRAM_BOT_TOKEN':'test-only-token'}), mock.patch('urllib.request.urlopen',side_effect=TimeoutError) as opened:
+        with mock.patch('telegram_delivery.secret_value',return_value='test-only-token'), mock.patch('urllib.request.urlopen',side_effect=TimeoutError) as opened:
             with self.assertRaises(RuntimeError):send_preview(self.source,checksum,cfg,receipt)
             with self.assertRaises(FileExistsError):send_preview(self.source,checksum,cfg,receipt)
             self.assertEqual(opened.call_count,1)
