@@ -78,7 +78,7 @@ def report(env=None):
         live = name in ('fal', 'replicate')
         op(f'bring your own {name} ({kinds})', (READY if live else EXPERIMENTAL) if has_key else SETUP,
            [] if has_key else [f'set {_g.PROVIDERS[name]["env_key"]} with your own {name} key'],
-           ('Live: quote, reply YES, generate, insert as a new version. Add models to ~/.config/hermes-studio/models.json.' if live
+           ('Live: quote, reply YES plus the one-time code, generate, insert as a new version. Add models to ~/.config/hermes-studio/models.json.' if live
             else 'Adapter is a dry run today: plans the request, never sends.') + ' Paid calls always need the owner\'s approval.')
     op('motion engines (Motion Canvas, Revideo, Manim)', UNAVAILABLE, ['not built yet'])
 

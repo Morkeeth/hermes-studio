@@ -102,5 +102,58 @@ class Approval(unittest.TestCase):
         self.assertIn('expired', why)
 
 
+    def test_code_from_another_quote_spends_nothing(self):
+        r1 = self.quote_job()
+        code1 = r1['quote_message'].split('YES ')[1].split()[0]
+        # a second quote for the same short: its code differs, and quote 1's code must not open it
+        job2 = {'id': '2' * 32, 'action': 'generate', 'parent': 'f' * 32, 'title': 'demo', 'query': 'other idea'}
+        state, r2 = connector_worker.process(self.cfg, job2, None); r2.pop('quote_message')
+        connector_worker.atomic(self.ws / job2['id'] / 'result.json', r2)
+        job = {'id': '3' * 32, 'action': 'approve', 'parent': '2' * 32, 'query': 'YES ' + code1}
+        with patch.object(gen_api, '_run_fal') as run:
+            try:
+                connector_worker.process(self.cfg, job, None); outcome = 'spent'
+            except PermissionError as e:
+                outcome = str(e)
+        self.assertIn('does not match', outcome)
+        self.assertEqual(run.call_count, 0)
+
+    def test_reply_from_outside_the_owner_chat_cannot_approve(self):
+        gw = Path(self.tmp.name) / 'gw2'; (gw / 'jobs').mkdir(parents=True)
+        (gw / 'config.json').write_text(json.dumps({'inbound_roots': [self.tmp.name], 'delivery_chat_id': 1, 'allowed_chat_ids': [1]}))
+        quote = {'id': '8' * 32, 'state': 'completed', 'action': 'generate', 'result': {'state': 'awaiting_approval'},
+                 'deliveries': [{'state': 'sent', 'message_id': 55, 'chat_id': 999}]}  # sent to a different chat
+        (gw / 'jobs' / ('8' * 32 + '.json')).write_text(json.dumps(quote))
+        with self.assertRaises(ValueError) as e:
+            channel.request({'action': 'approve', 'reply_to_message_id': 55, 'query': 'YES ABCDEF', 'request_key': 'k-x'}, gw)
+        self.assertIn('No unique delivered project', str(e.exception))
+
+    def test_two_simultaneous_approvals_of_one_quote_spend_once(self):
+        import threading
+        r = self.quote_job()
+        code = r['quote_message'].split('YES ')[1].split()[0]
+        outcomes = []
+        real_loads = json.loads
+
+        def slow_loads(text, *a, **k):  # widen the window between reading the quote and marking it used
+            v = real_loads(text, *a, **k)
+            if isinstance(v, dict) and 'approval_code' in v:
+                time.sleep(0.3)
+            return v
+        with patch.object(gen_api, '_run_fal', return_value={'video': {'url': 'https://cdn.example/x.mp4'}}) as run, \
+             patch('connectors.gen_api.urllib.request.urlopen', side_effect=lambda *a, **k: io.BytesIO(self.shot)), \
+             patch('connector_worker.json.loads', side_effect=slow_loads):
+            def go(i):
+                try:
+                    connector_worker.process(self.cfg, {'id': f'{i}' * 32, 'action': 'approve', 'parent': 'a' * 32, 'query': 'YES ' + code}, None)
+                    outcomes.append('spent')
+                except Exception as e:
+                    outcomes.append('refused')
+            ts = [threading.Thread(target=go, args=(i,)) for i in (5, 6)]
+            [t.start() for t in ts]; [t.join() for t in ts]
+        self.assertEqual(sorted(outcomes), ['refused', 'spent'])
+        self.assertEqual(run.call_count, 1)
+
+
 if __name__ == '__main__':
     unittest.main()

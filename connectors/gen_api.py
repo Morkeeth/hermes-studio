@@ -2,7 +2,7 @@
 
 Flow, always in this order:
   1. quote()     -> the model, the prompt, the cost from YOUR models.json (or "unknown"), a one-time approval code
-  2. the creator replies YES in the chat
+  2. the creator replies YES plus the one-time code from the quote, in the owner chat
   3. generate()  -> refuses without that approval and inside the monthly cap; submits, waits, downloads one MP4
 Keys are read from the environment on the workstation only (FAL_KEY, REPLICATE_API_TOKEN). They never enter
 a job, a log or a chat. Studio does not guess prices: you write them in models.json from the provider's pricing page.

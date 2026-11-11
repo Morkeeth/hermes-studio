@@ -178,12 +178,15 @@ def generation(cfg, job, root):
                              'finished': parent['preview'], 'source': parent['source'],
                              'options': parent.get('options'), 'title': parent.get('title'), 'project_id': parent.get('project_id')}
     secret_path = root / job['parent'] / 'quote-secret.json'
-    q = json.loads(secret_path.read_text())
-    if q.get('used'):
-        raise PermissionError('this quote was already spent')
-    if str(job.get('query', '')).strip().upper() != 'YES ' + q['approval_code']:
-        raise PermissionError('approval code does not match this quote')
-    atomic(secret_path, dict(q, used=True))  # marked before spending: a crash afterwards never allows a second spend
+    import fcntl
+    with open(secret_path.with_suffix('.lock'), 'a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)  # two approvals of one quote: only the first can mark it used
+        q = json.loads(secret_path.read_text())
+        if q.get('used'):
+            raise PermissionError('this quote was already spent')
+        if str(job.get('query', '')).strip().upper() != 'YES ' + q['approval_code']:
+            raise PermissionError('approval code does not match this quote')
+        atomic(secret_path, dict(q, used=True))  # marked before spending: a crash afterwards never allows a second spend
     frame = folder / 'reference.png'
     subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', '2.5', '-i', parent['finished'], '-frames:v', '1', str(frame)], check=True)
     shot = gen_api.generate(q, job['query'], folder / 'shot', image=frame)
