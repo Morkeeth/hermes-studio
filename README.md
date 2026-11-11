@@ -31,24 +31,15 @@ Ask Hermes for any video job ("make a Short from this", "add captions", "cut a t
 
 <br clear="right">
 
-## The new timeline: editing as a conversation
+## The timeline is the conversation
 
-The timeline used to be a strip of clips you drag around. In Hermes Studio the timeline is the conversation. Every message is an edit, every reply points at an exact version, and the project underneath stays real and editable.
+<p align="center"><img src="docs/img/timeline.png" alt="The timeline is the conversation: each message is a cut point, each reply a new version" width="100%"></p>
 
-```mermaid
-flowchart LR
-  A[Raw footage in chat] --> D[studio_doctor: what can this machine do]
-  D --> F[studio_finish: subtitles, audio fix, kinetic intro, sound design]
-  F --> P[(Editable project + recipe)]
-  P --> T[Preview back in chat]
-  T -->|reply: change it| R[New version of the same project]
-  R --> P
-  P -->|studio_timeline| O[OpenTimelineIO]
-  O --> E1[Final Cut / Resolve via FCPXML]
-  O --> E2[Premiere, next]
-  P -->|bring your own key| G[Higgsfield / any video model / ElevenLabs]
-  G --> P
-```
+The old timeline is a strip of clips you drag around. In Hermes Studio the timeline is the chat. Every message is a cut point, every reply is a new version of the same editable project, and you can scroll back to any version.
+
+Hermes talks it through with you. Ask for a **Short** or full **brain rot**, and Hermes answers with alternatives right in the chat: a clean short, a brain-rot cut, the Hermes dither look. Pick one, keep directing. You pick the style; Hermes picks the tools.
+
+Working today: versions from raw footage to subtitles, audio repair, kinetic intro and sound design (`studio_finish`), reply-to-edit on music level, and export to Final Cut and Resolve through OpenTimelineIO. Next: style alternatives in chat and the dashed connectors.
 
 ## New: `studio_finish`, raw footage to a finished short
 
