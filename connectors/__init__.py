@@ -1,7 +1,7 @@
 """Connector registry: one timeline, many tools. Status is what actually runs, not what is planned."""
 from .timeline import Cut, Timeline, to_otio, from_otio, write_otio, read_otio
 from .fcpxml import to_fcpxml, write_fcpxml
-from . import ffmpeg_render, generate, doctor, finish
+from . import ffmpeg_render, generate, doctor, finish, styles, skills
 
 CONNECTORS = [
     # group, name, status, route

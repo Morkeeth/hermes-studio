@@ -155,5 +155,35 @@ class Finish(unittest.TestCase):
         self.assertLess(c[0]['end'], 2.2)
 
 
+class StylesAndSkills(unittest.TestCase):
+    def test_three_alternatives_render(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = make_clip(Path(tmp) / 'raw.mp4', seconds=3)
+            words = [{'text': 'brain', 'start': 0.2, 'end': 0.5}, {'text': 'rot', 'start': 0.5, 'end': 0.9}]
+            r = cx.finish.alternatives(raw, Path(tmp) / 'alt', title='Pick one', words=words, seconds=2.0)
+            self.assertEqual([o['option'] for o in r['options']], ['A', 'B', 'C'])
+            for o in r['options']:
+                self.assertTrue(Path(o['preview']).is_file())
+
+    def test_brain_rot_is_one_word_at_a_time(self):
+        self.assertEqual(cx.styles.get('brain-rot')['words'], 1)
+        with self.assertRaises(ValueError):
+            cx.styles.get('nope')
+
+    def test_style_from_reference_frame(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from PIL import Image
+            p = Path(tmp) / 'ref.png'
+            im = Image.new('RGB', (100, 100), (250, 240, 10)); im.paste((10, 10, 10), (0, 0, 50, 100)); im.save(p)
+            st = cx.styles.from_reference(p, 'yellow')
+            self.assertLess(sum(st['intro_dark']), 100)
+            self.assertGreater(sum(st['intro_light']), 400)
+
+    def test_skills_recommend_for_animation(self):
+        names = [s['name'] for s in cx.skills.recommend('animate my intro and add captions')]
+        self.assertIn('Remotion skills', names)
+        self.assertTrue(all(s['repo'].startswith('https://github.com/') for s in cx.skills.recommend('captions')))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -67,6 +67,15 @@ There is a huge wave of video skills and engines. Studio wants to conduct them, 
 - [Remotion](https://github.com/remotion-dev/remotion), [Motion Canvas](https://github.com/motion-canvas/motion-canvas), [Revideo](https://github.com/midrender/revideo), [Manim](https://github.com/ManimCommunity/manim): code-driven animation engines, next in line as motion connectors.
 - Hermes showreel and session-recording hooks: turning agent work itself into footage.
 
+## Styles, alternatives and the skills Studio conducts
+
+<p align="center"><img src="docs/img/styles-skills.png" alt="Short or brain rot: three styles from one raw take, and the top video skills Studio conducts" width="100%"></p>
+
+- **`studio_alternatives`** renders the same raw take in several styles (clean short, brain rot, Hermes dither, mono kinetic) so Hermes can ask "Short or brain rot? Pick a style." in the chat. Each option is a real preview.
+- **`studio_finish style=...`** finishes the full take in the style you picked.
+- **Recreate a look:** `styles.from_reference` turns a reference frame into a new style (dither pair, caption box, text colour). Full motion recreation is next, through HyperFrames and Remotion.
+- **`studio_skills`** recommends the best skills in the ecosystem for a plain request ("animate my intro", "brain rot captions"), with repo, licence and whether Studio already does it. The list grows; every new skill is one entry.
+
 ## Bring your own tools
 
 Studio is the hub. Plug **any video model** into Hermes with your own account: your own **Higgsfield** (or any other video model) for generated shots, your own **ElevenLabs** for voice, sound effects and music, and your own editor (**Final Cut**, **DaVinci Resolve**, **Premiere**). Keys stay in your environment; Studio never stores or logs them. `studio_doctor` shows which ones are connected. Today these adapters are dry runs that plan the request; paid calls will always ask you first.
@@ -91,14 +100,16 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 45 run, 42 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
+**Tests:** 49 run, 46 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
 
-### Next, in order
+### Next: one extraordinary edit, then the whole studio
 
-1. Close the loop: an authorized revision renders through the gate and the new video comes back in the chat.
-2. One more creative edit beyond music level: caption style, a tighter opening, or an animated title.
-3. One real generated insert from one real model, approved before any spend.
-4. A Studio Doctor command and a sample project with redistributable media, so anyone can reproduce the core flow.
+Two reviews shaped this plan: the creator's ambition (every connector, every skill, any model) and Hermes' own critique (prove one complete creative outcome first). They fit together:
+
+1. **The hero moment.** Send fresh raw footage, pick a style from real alternatives, get the finished short back in Telegram, ask for a change, get the revised cut back. `studio_alternatives` and `studio_finish` already render this locally; wiring them into the Telegram reply flow is the next step.
+2. **One real generated insert.** One provider on the user's own key, one generated shot placed in the edit, cost shown and approved first.
+3. **Reproducible by anyone.** A sample project with redistributable media and a one-command run, checked by `studio_doctor`.
+4. **Then grow without limits.** Each new connector or skill is one adapter or one registry entry, and it reports what it preserves.
 
 ## Install
 
@@ -117,7 +128,7 @@ hermes plugins doctor /path/to/hermes-studio --ci
 python3 -m unittest discover -s /path/to/hermes-studio -p 'test_*.py' -v
 ```
 
-Core tools: studio_take, studio_library, studio_build, studio_cut, studio_gate, studio_verify_post, studio_request, studio_status, studio_connectors, studio_timeline, studio_generate, studio_doctor, studio_finish. Read [SKILL.md](SKILL.md) for the explicit reviewed-recipe requirements. studio_build accepts recipe, output and render=false by default. A genuine native project template and actual word alignment are required inputs. New footage is not silently given invented timing or story approval.
+Core tools: studio_take, studio_library, studio_build, studio_cut, studio_gate, studio_verify_post, studio_request, studio_status, studio_connectors, studio_timeline, studio_generate, studio_doctor, studio_finish, studio_alternatives, studio_skills. Read [SKILL.md](SKILL.md) for the explicit reviewed-recipe requirements. studio_build accepts recipe, output and render=false by default. A genuine native project template and actual word alignment are required inputs. New footage is not silently given invented timing or story approval.
 
 ## Two-host conversation flow
 

@@ -19,6 +19,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+from . import styles as _styles
+
 W, H, FPS = 1080, 1920, 30
 BLUE, PALE, INK = (26, 26, 240), (232, 234, 255), (255, 255, 255)
 FONT_CANDIDATES = ['/System/Library/Fonts/Supplemental/DIN Condensed Bold.ttf',
@@ -100,10 +102,11 @@ def write_srt(chunks, path, offset=0.0):
 
 # ---------- 3+4. graphics ----------
 
-def _dither_bg(frame_png):
+def _dither_bg(frame_png, st=None):
+    st = st or _styles.get('hermes-dither')
     g = ImageOps.autocontrast(Image.open(frame_png).convert('L'), cutoff=2)
     g = ImageOps.fit(g, (W // 3, H // 3)).convert('1').resize((W, H), Image.NEAREST).convert('L')
-    return ImageOps.colorize(g, black=(20, 20, 220), white=(70, 70, 255))
+    return ImageOps.colorize(g, black=st['intro_dark'], white=st['intro_light'])
 
 
 def _ease_out_back(x):
@@ -111,9 +114,11 @@ def _ease_out_back(x):
     return 1 + c3 * (x - 1) ** 3 + c1 * (x - 1) ** 2
 
 
-def render_intro(frame_png, title, seconds, frames_dir):
+def render_intro(frame_png, title, seconds, frames_dir, st=None):
     """Title words slam in one by one over the dithered first frame. Returns per-word hit times."""
-    bg = _dither_bg(frame_png)
+    st = st or _styles.get('hermes-dither')
+    bg = _dither_bg(frame_png, st)
+    ink = tuple(st['text']); box = tuple(st['box']) if st['box'] is not None else (0, 0, 0)
     words = title.upper().split()
     n = max(1, len(words))
     per = min(0.35, (seconds - 0.5) / n)
@@ -141,15 +146,19 @@ def render_intro(frame_png, title, seconds, frames_dir):
                     x += d.textlength(w + ' ', font=f); continue
                 s = _ease_out_back(min(1.0, p))
                 fs = _font(max(8, int(size * (0.6 + 0.4 * s))))
-                d.text((x, y0 + li * size * 0.95 + (size - fs.size) * 0.5), w, font=fs, fill=INK)
+                ty = y0 + li * size * 0.95 + (size - fs.size) * 0.5
+                ww = d.textlength(w, font=fs)
+                d.rectangle([x - 12, ty - 6, x + ww + 12, ty + fs.size * 0.95], fill=box)
+                d.text((x, ty), w, font=fs, fill=ink)
                 x += d.textlength(w + ' ', font=f)
         im.save(Path(frames_dir) / f'i{k:05}.png')
     return hits
 
 
-def render_caption_strip(chunks, duration, strip_h, frames_dir):
+def render_caption_strip(chunks, duration, strip_h, frames_dir, st=None):
     """Transparent caption frames: active chunk pops in a blue box."""
-    f = _font(110)
+    st = st or _styles.get('hermes-dither')
+    base = st['size']
     total = int(math.ceil(duration * FPS))
     blank = Image.new('RGBA', (W, strip_h), (0, 0, 0, 0))
     ci = 0
@@ -162,15 +171,16 @@ def render_caption_strip(chunks, duration, strip_h, frames_dir):
             blank.save(Path(frames_dir) / f'c{k:05}.png'); continue
         p = min(1.0, (t - c['start']) / 0.12)
         s = _ease_out_back(p)
-        fs = _font(max(10, int(110 * (0.75 + 0.25 * s))))
+        fs = _font(max(10, int(base * (0.75 + 0.25 * s))))
         im = blank.copy(); d = ImageDraw.Draw(im)
         text = c['text'].upper()
         tw = d.textlength(text, font=fs)
         if tw > W - 80:
             fs = _font(int(fs.size * (W - 80) / tw)); tw = d.textlength(text, font=fs)
         x = (W - tw) / 2; y = (strip_h - fs.size) / 2
-        d.rounded_rectangle([x - 26, y - 14, x + tw + 26, y + fs.size + 10], radius=20, fill=BLUE + (int(235 * p),))
-        d.text((x, y), text, font=fs, fill=INK + (int(255 * p),))
+        if st['box'] is not None:
+            d.rounded_rectangle([x - 26, y - 14, x + tw + 26, y + fs.size + 10], radius=20, fill=tuple(st['box']) + (int(235 * p),))
+        d.text((x, y), text, font=fs, fill=tuple(st['text']) + (int(255 * p),))
         im.save(Path(frames_dir) / f'c{k:05}.png')
     return total
 
@@ -197,31 +207,34 @@ def render_sfx(hits, cut_at, total, path):
 AUDIO_FIX = 'highpass=f=80,afftdn=nf=-25,loudnorm=I=-14:TP=-1.5:LRA=11'
 
 
-def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_seconds=1.6, music_db=-20):
+def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_seconds=1.6, music_db=-20, style='hermes-dither', max_seconds=None):
     raw = Path(raw).expanduser().resolve(strict=True)
     out = Path(out_dir).expanduser(); out.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
-        dur = _duration(raw)
+        st = _styles.get(style)
+        dur = _duration(raw) if not max_seconds else min(_duration(raw), max_seconds)
         if words is None:
             words = transcribe_words(raw, model, tmp) if _has_audio(raw) else []
-        chunks = chunk_words(words)
+        words = [w for w in words if w['start'] < dur]
+        chunks = chunk_words(words, max_words=st['words'])
         title = title or ' '.join(w['text'] for w in words[:4]) or 'HERMES STUDIO'
         _run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', str(min(0.5, dur / 2)), '-i', str(raw), '-frames:v', '1', str(tmp / 'first.png')])
         (tmp / 'intro').mkdir(); (tmp / 'caps').mkdir()
-        hits = render_intro(tmp / 'first.png', title, intro_seconds, tmp / 'intro')
-        strip_h = 300
-        render_caption_strip(chunks, dur, strip_h, tmp / 'caps')
+        hits = render_intro(tmp / 'first.png', title, intro_seconds, tmp / 'intro', st)
+        strip_h = max(300, int(st['size'] * 2.2))
+        render_caption_strip(chunks, dur, strip_h, tmp / 'caps', st)
+        cap_y = int(H * st['y'] - strip_h / 2)
         total = intro_seconds + dur
         render_sfx(hits, intro_seconds, total, tmp / 'sfx.wav')
         # voice: repaired footage audio, delayed past the intro
         inputs = ['-framerate', str(FPS), '-i', str(tmp / 'intro' / 'i%05d.png'),
-                  '-i', str(raw),
+                  '-t', f'{dur:.3f}', '-i', str(raw),
                   '-framerate', str(FPS), '-i', str(tmp / 'caps' / 'c%05d.png'),
                   '-i', str(tmp / 'sfx.wav')]
         d_ms = int(intro_seconds * 1000)
         v = (f"[1:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},setsar=1[foot];"
-             f"[foot][2:v]overlay=0:{H - strip_h - 260}:format=auto[capd];"
+             f"[foot][2:v]overlay=0:{cap_y}:format=auto[capd];"
              f"[0:v]fps={FPS},setsar=1,format=yuv420p[intro];[capd]format=yuv420p[body];"
              f"[intro][body]concat=n=2:v=1:a=0[v]")
         if _has_audio(raw):
@@ -240,9 +253,23 @@ def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_sec
               '-map', '[v]', '-map', '[a]', '-t', f'{total:.3f}', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p',
               '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(final)])
         srt = write_srt(chunks, out / 'captions.srt', offset=intro_seconds)
-        recipe = {'source': str(raw), 'title': title, 'intro_seconds': intro_seconds, 'audio_fix': AUDIO_FIX,
+        recipe = {'source': str(raw), 'title': title, 'style': style if isinstance(style, str) else st, 'intro_seconds': intro_seconds, 'audio_fix': AUDIO_FIX,
                   'music': str(music) if music else None, 'music_db': music_db, 'chunks': chunks,
                   'sound_design': {'whoosh_at': hits, 'sub_hit_at': intro_seconds}, 'output': str(final)}
         (out / 'finish.json').write_text(json.dumps(recipe, indent=1))
     return {'ok': True, 'output': str(final), 'captions': srt, 'recipe': str(out / 'finish.json'),
             'seconds': round(_duration(final), 2), 'subtitle_chunks': len(chunks)}
+
+
+def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-short', 'brain-rot', 'hermes-dither'), seconds=6.0):
+    """Render the same opening in several styles so Hermes can offer A/B/C in the chat."""
+    raw = Path(raw).expanduser().resolve(strict=True)
+    out = Path(out_dir).expanduser(); out.mkdir(parents=True, exist_ok=True)
+    if words is None:
+        with tempfile.TemporaryDirectory() as tmp:
+            words = transcribe_words(raw, model, tmp) if _has_audio(raw) else []
+    options = []
+    for letter, name in zip('ABCDEFG', styles):
+        r = finish(raw, out / f'{letter}-{name}', title=title, words=words, style=name, max_seconds=seconds, intro_seconds=1.2)
+        options.append({'option': letter, 'style': name, 'label': _styles.get(name)['label'], 'preview': r['output']})
+    return {'ok': True, 'question': 'Pick a style: ' + ', '.join(f"{o['option']} {o['label']}" for o in options), 'options': options}
