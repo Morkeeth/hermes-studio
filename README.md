@@ -6,7 +6,19 @@
 
 Turn a reviewed local take into an editable vertical short with animated captions and music from your own library. Reply to the delivered preview to change it: Hermes finds the exact project behind that video and makes a new editable revision, which is rendered through an explicit safety gate.
 
-Your footage never leaves your machine. Every version is a real, editable project.
+Your footage never leaves your machine. Every version is kept, never overwritten.
+
+## What is true today
+
+| State | What |
+|---|---|
+| **Verified live** (Telegram, 11 Nov) | Raw footage sent to Pretzel: three style previews delivered; one picked and the full short delivered. |
+| **Tested end to end, not yet run live** | Reply with several changes at once (`revise`); recreate a look from a reference clip; the editor's pick; karaoke captions; brain rot split screen; a music bed per style. Run through a fake Telegram in `test_hero_loop.py`. |
+| **Local only** | `studio_finish`, `studio_alternatives`, `studio_demo` on the workstation. `studio_demo` needs no private footage and no paid service. |
+| **Experimental** | Export to Final Cut and Resolve: FCPXML passes the schema shipped inside Final Cut Pro, cuts only, not yet imported through the app. OpenTimelineIO round trip, one video track. |
+| **Not proven** | Any real paid generation (fal or Replicate adapter is tested against a fake provider only). |
+
+**Two kinds of output, kept apart.** The conversation flow (`studio_finish`) gives a rendered MP4, an SRT and a re-runnable recipe (`finish.json`), not an editor timeline. The older reviewed-take flow (`studio_cut`, `studio_build`) gives a native editable `.vproj.json` project for hermes-video-editor.
 
 <p align="center">
   <img src="docs/img/telegram-reply.png" alt="Replying to a delivered preview in Telegram" width="31%">
@@ -43,11 +55,11 @@ Ask Hermes for any video job ("make a Short from this", "add captions", "cut a t
 
 <p align="center"><img src="docs/img/timeline.png" alt="The timeline is the conversation: each message is a cut point, each reply a new version" width="100%"></p>
 
-The old timeline is a strip of clips you drag around. In Hermes Studio the timeline is the chat. Every message is a cut point, every reply is a new version of the same editable project, and you can scroll back to any version.
+The old timeline is a strip of clips you drag around. In Hermes Studio the timeline is the chat. Every message is a cut point, every reply is a new version of the same project recipe, and you can scroll back to any version.
 
 Hermes talks it through with you. Ask for a **Short** or full **brain rot**, and Hermes answers with alternatives right in the chat: a clean short, a brain-rot cut, the Hermes dither look. Pick one, keep directing. You pick the style; Hermes picks the tools.
 
-Status, in one place: `studio_finish` and the style alternatives render on the workstation today, from fresh raw footage. The Telegram loop (send footage, get A/B/C, reply a letter, get the finished short) is wired through the queue and tested end to end against a fake Telegram (`test_hero_loop.py`); it is deployed on the live gateway (11 Nov, 22:40) with a queue round trip verified; the first real footage run through Telegram is next. Reply-to-edit on music level and export to Final Cut and Resolve through OpenTimelineIO also work today. The dashed connectors are next.
+Status: see the table at the top. Every claim there names its evidence.
 
 ## New: `studio_finish`, raw footage to a finished short
 
@@ -98,7 +110,7 @@ One adapter, many models. Put your own key on the workstation (`FAL_KEY` or `REP
 2. Hermes answers with a quote: the model, the cost (or UNKNOWN if you did not set one), what you spent this month and your cap.
 3. You reply **YES** plus the one-time code shown in the quote (for example `YES 7F3A2C`). Only then does Studio spend: it sends a frame of your footage as the reference, waits for the model, downloads the clip and puts it at the start of your short as a new version.
 
-Keys never leave the workstation. Studio never guesses a price and refuses anything over your monthly cap. The approval is enforced on the workstation, not trusted to the agent: the one-time code exists only on the workstation and in your chat (never in the job the agent can read), expires after 30 minutes, works once, and is marked spent before any money moves. `test_approval.py` tries the attacks: a plain YES from the agent, a wrong code, a reused code, an expired quote. API shapes checked against the fal queue and Replicate predictions docs on 11 Nov 2026; tested end to end against a fake provider, not yet against a live paid call.
+Keys never leave the workstation. Studio never guesses a price. The monthly cap is hard: a model with no price and no `max_usd` of your own is blocked, and the budget is rechecked under a lock at the moment of spending. The approval is enforced on the workstation, not trusted to the agent: the one-time code exists only on the workstation and in your chat (never in the job the agent can read), expires after 30 minutes, works once, and is marked spent before any money moves. `test_approval.py` tries the attacks: a plain YES from the agent, a wrong code, a reused code, an expired quote. API shapes checked against the fal queue and Replicate predictions docs on 11 Nov 2026; tested end to end against a fake provider, not yet against a live paid call.
 
 ## Bring your own tools
 
@@ -124,7 +136,7 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 70 run, 67 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
+**Tests:** 81 run, 78 pass, 3 skipped because they need real media fixtures. The full suite renders real video and takes about 2.5 minutes: `python3 -m unittest discover -s . -p 'test_*.py'` (a 120-second timeout cuts it off). It is not an end-to-end validation of the live Telegram loop.
 
 ### Next: one extraordinary edit, then the whole studio
 
