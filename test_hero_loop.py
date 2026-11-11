@@ -92,6 +92,16 @@ class HeroLoop(unittest.TestCase):
             self.assertTrue(any('quieter music' in k for k in result['skipped']))  # mixed track: said plainly, not faked
             self.assertIn('Could not: quieter music', sent[-1]['caption'])
             self.assertIn('Previous version kept', sent[-1]['caption'])
+            # 3c. "make it look like this": a reference clip becomes the look
+            ref = inbound / 'reference.mp4'
+            subprocess.run(['ffmpeg', '-nostdin', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=orange:size=320x240:rate=30:duration=2',
+                            '-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=30:duration=2', '-filter_complex', '[0][1]blend=all_mode=multiply',
+                            '-c:v', 'libx264', '-pix_fmt', 'yuv420p', str(ref)], check=True)
+            channel.request({'action': 'revise', 'reply_to_message_id': sent[-1]['mid'], 'source': str(ref), 'request_key': 'tg:42:3c:look',
+                             'edit': {'look_from_source': True}}, gw)
+            job, state, result = worker_pass()
+            self.assertEqual((state, result['state']), ('completed', 'revised'))
+            self.assertIn('look taken from your reference clip', result['changed'])
             # 4. a letter that was never offered fails honestly
             channel.request({'action': 'finish', 'reply_to_message_id': sent[4]['mid'], 'style': 'D', 'request_key': 'tg:42:4:finish'}, gw)
             job, state, result = worker_pass()

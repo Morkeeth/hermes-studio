@@ -39,6 +39,10 @@ def from_reference(image_path, name='from-reference'):
     colours = sorted({c for _, c in pal.getcolors(160 * 160)}, key=lambda c: sum(c))
     dark, light = colours[0], colours[-1]
     accent = max(colours, key=lambda c: max(c) - min(c))
+    # keep the dither readable: push the pair apart until they clearly differ
+    dark = tuple(int(c * 0.45) for c in dark)
+    light = tuple(min(255, int(c + (255 - c) * 0.35)) for c in light)
     text = (255, 255, 255) if sum(accent) < 380 else (10, 10, 10)
     return {'label': f'Look of {name}', 'intro_dark': dark, 'intro_light': light,
-            'box': accent, 'text': text, 'size': 110, 'words': 3, 'y': 0.80}
+            'box': accent, 'text': text, 'highlight': light, 'highlight_text': dark,
+            'size': 110, 'words': 3, 'y': 0.80}

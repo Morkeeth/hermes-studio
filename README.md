@@ -83,7 +83,7 @@ There is a huge wave of video skills and engines. Studio wants to conduct them, 
 
 - **`studio_alternatives`** renders the same raw take in several styles (clean short, brain rot, Hermes dither, mono kinetic) so Hermes can ask "Short or brain rot? Pick a style." in the chat. Each option is a real preview.
 - **`studio_finish style=...`** finishes the full take in the style you picked.
-- **Recreate a look:** `styles.from_reference` turns a reference frame into a new style (dither pair, caption box, text colour). Full motion recreation is next, through HyperFrames and Remotion.
+- **Recreate a look, from the chat:** reply to your short with any reference video and "make it look like this". Studio pulls that clip's palette into a new style (dither pair, caption box, word highlight) and re-cuts your short in it as a new version. Full motion recreation is next, through HyperFrames and Remotion.
 - **`studio_skills`** recommends the best skills in the ecosystem for a plain request ("animate my intro", "brain rot captions"), with repo, licence and whether Studio already does it. The list grows; every new skill is one entry.
 
 ## Direct it like an editor: several changes in one reply

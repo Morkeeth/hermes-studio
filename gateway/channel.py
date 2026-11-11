@@ -69,9 +69,11 @@ def request(args, root=None):
     if action == 'revise':
         if not parent or (parent.get('result') or {}).get('state') not in ('finished', 'generated', 'revised'):
             raise ValueError('revise needs a reply to a finished short')
-        allowed = {'style', 'captions_from', 'trim_start', 'punchier', 'title', 'quieter_music'}
+        allowed = {'style', 'captions_from', 'trim_start', 'punchier', 'title', 'quieter_music', 'look_from_source'}
         if not edit or set(edit) - allowed:
             raise ValueError('revise edit can combine: ' + ', '.join(sorted(allowed)))
+        if edit.get('look_from_source') and not args.get('source'):
+            raise ValueError('look_from_source needs source=<the reference video the creator sent>')
         if 'trim_start' in edit and not (type(edit['trim_start']) in (int, float) and 0 <= edit['trim_start'] <= 30):
             raise ValueError('trim_start is seconds to cut from the opening, 0 to 30')
     if action == 'edit':

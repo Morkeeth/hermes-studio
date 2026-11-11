@@ -49,7 +49,7 @@ def process(cfg, job, fetch):
     if job['action'] in ('generate', 'approve'):
         return generation(cfg, job, root)
     if job['action'] == 'revise':
-        return revise(cfg, job, root)
+        return revise(cfg, job, root, fetch)
     if job['action'] == 'prepare':
         blob = fetch(job['id'])
         raw = base64.b64decode(blob['base64'], validate=True)
@@ -196,7 +196,7 @@ def generation(cfg, job, root):
 CAPTION_KEYS = ('box', 'text', 'size', 'words', 'y')
 
 
-def revise(cfg, job, root):
+def revise(cfg, job, root, fetch=None):
     """Several changes in one reply, rendered as a new version. Says plainly what it could not do."""
     from connectors import finish as studio_finish, styles as studio_styles
     folder = root / job['id']
@@ -211,6 +211,14 @@ def revise(cfg, job, root):
     base = pick(e['style']) if 'style' in e else parent.get('style', 'hermes-dither')
     st = dict(studio_styles.get(base))
     changed, skipped = [f'style {base}'], []
+    if e.get('look_from_source'):
+        # recreate a look: the reference clip the creator sent becomes a new style (dither pair, caption box, text)
+        ref = _receive(job, fetch, folder)
+        frame = folder / 'reference.png'
+        subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', '1.0', '-i', str(ref), '-frames:v', '1', str(frame)], check=True)
+        look = studio_styles.from_reference(frame, 'your reference')
+        st.update({k: look[k] for k in ('intro_dark', 'intro_light', 'box', 'text', 'highlight', 'highlight_text')})
+        changed.append('look taken from your reference clip')
     if 'captions_from' in e:
         src = studio_styles.get(pick(e['captions_from']))
         st.update({k: src[k] for k in CAPTION_KEYS}); changed.append(f"captions from {pick(e['captions_from'])}")
