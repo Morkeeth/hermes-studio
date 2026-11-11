@@ -1,5 +1,5 @@
 name: hermes-studio-bridge
-version: 0.7.0
+version: 0.7.1
 requires_hermes: ">=0.20.0"
 description: Conversation queue connector to a separately configured Hermes Studio workstation.
 provides_tools: [studio_request, studio_status]

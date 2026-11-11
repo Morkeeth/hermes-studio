@@ -80,7 +80,10 @@ def report(env=None):
            'Adapter is a dry run today: plans the request, never sends. Paid calls will always need the owner\'s approval.')
     op('motion engines (Motion Canvas, Revideo, Manim)', UNAVAILABLE, ['not built yet'])
 
+    chat = {'callable_from_chat': ['studio_request: library, prepare, edit (music level), preview, alternatives, finish', 'studio_status'],
+            'workstation_only': ['studio_finish', 'studio_alternatives', 'studio_timeline', 'studio_generate', 'studio_skills', 'studio_cut', 'studio_build', 'studio_gate'],
+            'note': 'A gateway companion exposes only studio_request and studio_status. Workstation tools run there and are reached from chat through request actions; they are not directly callable in the chat.'}
     counts = {s: sum(1 for o in ops if o['status'] == s) for s in (READY, SETUP, EXPERIMENTAL, UNAVAILABLE)}
     first = next((o for o in ops if o['status'] == SETUP), None)
-    return {'summary': counts, 'operations': ops, 'environment': env,
+    return {'summary': counts, 'operations': ops, 'environment': env, 'channel': chat,
             'next_step': (f"To unlock '{first['operation']}': {first['blockers'][0]}" if first and first['blockers'] else 'Core local workflow is ready.')}

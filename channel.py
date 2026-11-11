@@ -112,6 +112,25 @@ def request(args, root=None):
     return obj
 
 
+EXPLAIN = {
+    'queued': 'Waiting for the workstation worker to pick this up. Nothing has rendered yet.',
+    'awaiting_render_gate': 'The change is saved as a new project version, but no new video exists. A render has to be authorized and run on the workstation. For a finished video now, ask for a style instead (studio_request action finish).',
+    'needs_reviewed_cut_recipe': 'This footage has no reviewed recipe for the native editor. To get a finished video now, ask for styles: studio_request action alternatives renders A, B and C from this footage.',
+    'alternatives_ready': 'Three style previews were rendered. Reply to one with its letter to get the full finished short.',
+    'finished': 'The finished short is rendered. Reply with another letter for a re-cut.',
+    'failed': 'This step failed; the error says why. Nothing was overwritten.',
+}
+
+
+def explain(job):
+    """One plain sentence for the creator: what happened, what is blocking, what to do next."""
+    state = (job.get('result') or {}).get('state') or job.get('state')
+    text = EXPLAIN.get(state) or EXPLAIN.get(job.get('state'), '')
+    if job.get('state') == 'failed' and (job.get('result') or {}).get('error'):
+        text += ' Error: ' + str(job['result']['error'])[:200]
+    return dict(job, explain=text)
+
+
 def status(identity=None, root=None, reply_to_message_id=None, source=None):
     root=Path(root) if root else queue_root()
     if reply_to_message_id is not None or source:
@@ -129,6 +148,6 @@ def status(identity=None, root=None, reply_to_message_id=None, source=None):
             raise ValueError('No unique delivered project matches this reply')
         if identity and matches[0]['id']!=identity:
             raise ValueError('Job does not match reply target')
-        return matches[0]
+        return explain(matches[0])
     if not identity:raise ValueError('Supply job, actual reply_to_message_id, or cached replied-video source')
-    return json.loads(job_path(root, identity).read_text())
+    return explain(json.loads(job_path(root, identity).read_text()))

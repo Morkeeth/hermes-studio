@@ -45,6 +45,18 @@ def _duration(path):
     return float(_run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(path)]).strip())
 
 
+def audio_layout(path):
+    """How many audio streams the source has. One stream means speech and music are mixed."""
+    out = _run(['ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index,channels', '-of', 'json', str(path)])
+    streams = json.loads(out).get('streams', [])
+    if not streams:
+        return {'streams': 0, 'note': 'no audio'}
+    if len(streams) == 1:
+        return {'streams': 1, 'note': 'speech and any music are mixed in one track: Studio cleans and levels the whole mix, '
+                                      'and cannot turn the original music down separately. A new music bed (music=...) is fully adjustable.'}
+    return {'streams': len(streams), 'note': 'separate audio streams; only the first is used today'}
+
+
 def _has_audio(path):
     return bool(_run(['ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', str(path)]).strip())
 
@@ -207,9 +219,11 @@ def render_sfx(hits, cut_at, total, path):
 AUDIO_FIX = 'highpass=f=80,afftdn=nf=-25,loudnorm=I=-14:TP=-1.5:LRA=11'
 
 
-def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_seconds=1.6, music_db=-20, style='hermes-dither', max_seconds=None):
+def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_seconds=1.6, music_db=-20, style='hermes-dither', max_seconds=None, overwrite=False):
     raw = Path(raw).expanduser().resolve(strict=True)
     out = Path(out_dir).expanduser(); out.mkdir(parents=True, exist_ok=True)
+    if (out / 'final.mp4').exists() and not overwrite:
+        raise FileExistsError(f'{out} already holds a render; use a new output directory (earlier versions are never overwritten)')
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         st = _styles.get(style)
@@ -258,6 +272,8 @@ def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_sec
                   'sound_design': {'whoosh_at': hits, 'sub_hit_at': intro_seconds}, 'output': str(final)}
         (out / 'finish.json').write_text(json.dumps(recipe, indent=1))
     return {'ok': True, 'output': str(final), 'captions': srt, 'recipe': str(out / 'finish.json'),
+            'kind': 'rendered short + re-runnable recipe (finish.json); not a native .vproj editor project',
+            'audio': audio_layout(raw),
             'seconds': round(_duration(final), 2), 'subtitle_chunks': len(chunks)}
 
 

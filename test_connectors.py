@@ -185,5 +185,25 @@ class StylesAndSkills(unittest.TestCase):
         self.assertTrue(all(s['repo'].startswith('https://github.com/') for s in cx.skills.recommend('captions')))
 
 
+class ReviewFixes(unittest.TestCase):
+    def test_existing_render_is_never_overwritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = make_clip(Path(tmp) / 'raw.mp4', seconds=2)
+            w = [{'text': 'one', 'start': 0.2, 'end': 0.6}]
+            r = cx.finish.finish(raw, Path(tmp) / 'out', title='T', words=w, intro_seconds=0.6)
+            before = Path(r['output']).read_bytes()
+            with self.assertRaises(FileExistsError):
+                cx.finish.finish(raw, Path(tmp) / 'out', title='Other', words=w, intro_seconds=0.6, style='brain-rot')
+            self.assertEqual(Path(r['output']).read_bytes(), before)
+            self.assertIn('not a native', r['kind'])
+            self.assertEqual(r['audio']['streams'], 1)
+            self.assertIn('mixed', r['audio']['note'])
+
+    def test_doctor_separates_chat_from_workstation(self):
+        ch = cx.doctor.report()['channel']
+        self.assertIn('studio_finish', ch['workstation_only'])
+        self.assertTrue(any('alternatives' in a for a in ch['callable_from_chat']))
+
+
 if __name__ == '__main__':
     unittest.main()

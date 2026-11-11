@@ -52,7 +52,8 @@ One call, all local:
 - **Kinetic intro:** title words slam in over a blue-dithered first frame.
 - **Sound design:** a whoosh into every title word, a sub hit on the cut into the footage.
 - **Beat:** optional music bed, ducked under the voice.
-- **Recipe:** `finish.json` records every choice, so the pass can be edited and re-run.
+- **Recipe:** `finish.json` records every choice, so the pass can be re-run with changes. It is a re-runnable recipe plus a rendered MP4 and SRT, not a native editor project. Earlier renders are never overwritten.
+- **Mixed audio, said plainly:** if speech and music share one track, Studio cleans and levels the whole mix and says it cannot turn the original music down on its own. A new music bed is fully adjustable.
 
 Run on a real 14-second raw camera take (Lumix, 18 Oct 2026): 6 subtitle chunks, finished in about 23 seconds on a laptop.
 
@@ -100,7 +101,7 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 50 run, 47 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
+**Tests:** 52 run, 49 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
 
 ### Next: one extraordinary edit, then the whole studio
 

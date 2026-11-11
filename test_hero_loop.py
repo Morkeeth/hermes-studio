@@ -86,6 +86,10 @@ class HeroLoop(unittest.TestCase):
             channel.request({'action': 'finish', 'reply_to_message_id': sent[4]['mid'], 'style': 'D', 'request_key': 'tg:42:4:finish'}, gw)
             job, state, result = worker_pass()
             self.assertEqual(state, 'failed')
+            # every state the creator can see comes with a plain sentence
+            import channel as ch
+            self.assertIn('Reply to one with its letter', ch.status(None, gw, reply_to_message_id=sent[0]['mid'])['explain'])
+            self.assertIn('no new video exists', ch.explain({'state': 'awaiting_render_gate', 'result': {'state': 'awaiting_render_gate'}})['explain'])
 
 
 if __name__ == '__main__':
