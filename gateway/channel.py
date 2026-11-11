@@ -79,6 +79,7 @@ def request(args, root=None):
            'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest() if source else None,
            'query': str(args.get('query', ''))[:150], 'edit': edit,
            'parent': parent['id'] if parent else None,
+           'base_revision': parent.get('result',{}).get('revision') if parent else None,
            'project_id': parent.get('result', {}).get('project_id') if parent else args.get('project_id'),
            'state': 'queued', 'created_at': time.time(), 'result': None}
     tmp = path.with_name('.request-' + uuid.uuid4().hex)
@@ -87,7 +88,7 @@ def request(args, root=None):
         os.link(tmp, path)  # atomic publish without replacing an existing request
     except FileExistsError:
         old = json.loads(path.read_text())
-        fields = ('action', 'source', 'source_sha256', 'query', 'edit', 'parent', 'project_id')
+        fields = ('action', 'source', 'source_sha256', 'query', 'edit', 'parent', 'project_id', 'base_revision')
         if any(old.get(k) != obj.get(k) for k in fields):
             raise ValueError('request_key already belongs to a different request')
         return old

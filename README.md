@@ -8,7 +8,7 @@ A conversation-first local video workflow for Hermes Agent. Keep the editor avai
 - Explicit filename search across real media-library folders.
 - One-command, source-bound recipe composition into a native editable portrait project, animated word-entry captions and shelf music.
 - Native export through separately installed hermes-video-editor; technical checks plus supplied hash-bound visual review.
-- SSH queue transport between a gateway and workstation, immutable music-level revisions, and explicit one-attempt Telegram preview delivery.
+- SSH queue transport between a gateway and workstation, immutable music-level revisions with stale-reply rejection, and explicit one-attempt Telegram preview delivery.
 - Public-page reachability/title verification when requested; no automatic public posting.
 
 The real demonstration used local transcription, a saved editable project, existing library music, actual Eyes inspection and Showreel hooks/planning. The gateway-to-workstation delivery test reused the exact reviewed export and labelled it unchanged. A full live attachment/reply-edit/new-export round trip is not yet verified. A skill being available does not prove every backend works.

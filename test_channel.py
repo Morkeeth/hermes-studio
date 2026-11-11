@@ -51,6 +51,8 @@ class ChannelTests(unittest.TestCase):
         self.assertEqual(state,'awaiting_render_gate');self.assertIsNone(changed['preview'])
         self.assertEqual(json.loads(original.read_text())['audios'][0]['vol'],-24)
         self.assertEqual(json.loads(Path(changed['native_project']).read_text())['audios'][0]['vol'],-28)
+        with self.assertRaisesRegex(ValueError,'Stale reply'):
+            process(cfg,dict(edit,id='a'*32),None)
 
     def test_edit_needs_real_parent(self):
         with self.assertRaises(ValueError):

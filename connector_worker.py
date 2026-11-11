@@ -15,6 +15,12 @@ from channel import atomic
 from library import discover
 
 
+def project_state(path):
+    raw=Path(path).read_bytes();obj=json.loads(raw)
+    return {'native_sha256':hashlib.sha256(raw).hexdigest(),
+            'editable_state':{k:obj.get(k) for k in ('canvas','clips','texts','audios')}}
+
+
 def remote(cfg, payload):
     host = cfg['ssh_host']
     if not re.fullmatch(r'[A-Za-z0-9_.@-]+', host) or host.startswith('-'):
@@ -55,6 +61,7 @@ def process(cfg, job, fetch):
             if seed['source_sha256'] == job['source_sha256']:
                 project.update(native_project=seed['project'], preview=seed['preview'],
                                preview_sha256=seed['preview_sha256'], state='existing_reviewed_preview')
+                project.update(project_state(seed['project']))
                 break
         atomic(folder/'revision-0.json', project)
         atomic(folder/'current.json', project)
@@ -68,6 +75,11 @@ def process(cfg, job, fetch):
         # Write immutable successor, preserving source and every older revision.
         if not current.get('native_project'):
             raise ValueError('Project has no reviewed editable cut yet')
+        if job.get('base_revision') != current['revision']:
+            raise ValueError('Stale reply edit: inspect the current project revision first')
+        observed=project_state(current['native_project'])
+        if current.get('native_sha256') and observed['native_sha256']!=current['native_sha256']:
+            raise ValueError('Native project changed outside this revision; inspect before editing')
         native = json.loads(Path(current['native_project']).read_text())
         if not native.get('audios'):
             raise ValueError('No music track exists to edit')
@@ -80,6 +92,7 @@ def process(cfg, job, fetch):
             json.dump(native, stream, indent=2)
         successor = dict(current, revision=revision, native_project=str(path),
                          preview=None, state='awaiting_render_gate', request_job=job['id'])
+        successor.update(project_state(path))
         atomic(folder/('revision-%d.json' % revision), successor)
         atomic(folder/'current.json', successor)
         return 'awaiting_render_gate', successor
