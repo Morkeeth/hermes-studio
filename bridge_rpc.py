@@ -20,7 +20,7 @@ def rpc(root, payload):
     if op == 'deliver':
         # Worker alone invokes this after a successful preview result. Recipient
         # comes from explicit host config, never from queue/model arguments.
-        if obj['action'] not in {'prepare','preview','finish'} or obj['state'] != 'completed' or not obj.get('result',{}).get('preview'):
+        if obj['action'] not in {'prepare','preview','finish','approve'} or obj['state'] != 'completed' or not obj.get('result',{}).get('preview'):
             raise ValueError('Job has no completed checked preview')
         from telegram_delivery import send_preview
         import hashlib
@@ -33,6 +33,8 @@ def rpc(root, payload):
         if not path.exists():
             with path.open('xb') as stream:stream.write(raw)
         caption='Your checked Studio preview. Reply with the change you want.'
+        if obj['result'].get('state')=='generated':
+            caption=f"New version with a generated opening ({obj['result'].get('model')}). Reply with another letter or a new shot idea."
         if obj['result'].get('state')=='finished':
             caption=f"Finished: {obj['result'].get('style')}. Reply A, B or C for another style, or tell me what to change."
         if obj['result'].get('state')=='existing_reviewed_preview':
@@ -46,6 +48,9 @@ def rpc(root, payload):
         from telegram_delivery import send_text
         sent=send_text(payload['text'],config(root))
         obj.setdefault('notes',[]).append({'text':str(payload['text'])[:300],'state':sent['state']})
+        if payload.get('bind') and sent.get('state')=='sent':
+            # A reply to this message (e.g. YES to a quote) resolves back to this job.
+            obj.setdefault('deliveries',[]).append({'state':'sent','message_id':sent['message_id'],'chat_id':config(root)['delivery_chat_id'],'kind':'text'})
         atomic(job,obj)
         return sent
     if op == 'deliver_option':

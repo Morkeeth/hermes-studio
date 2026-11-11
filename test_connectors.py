@@ -130,7 +130,7 @@ class Doctor(unittest.TestCase):
 
     def test_real_environment_runs_read_only(self):
         r = cx.doctor.report()
-        self.assertEqual(len(r['operations']), 10)
+        self.assertEqual(len(r['operations']), 12)
 
 
 class Finish(unittest.TestCase):

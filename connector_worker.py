@@ -46,6 +46,8 @@ def process(cfg, job, fetch):
         return 'completed', discover(cfg['library_roots'], job['query'])
     if job['action'] in ('alternatives', 'finish'):
         return creative(cfg, job, fetch, root)
+    if job['action'] in ('generate', 'approve'):
+        return generation(cfg, job, root)
     if job['action'] == 'prepare':
         blob = fetch(job['id'])
         raw = base64.b64decode(blob['base64'], validate=True)
@@ -156,9 +158,29 @@ def creative(cfg, job, fetch, root):
                          'project_id': (parent or {}).get('project_id', job['id'])}
 
 
-def say(cfg, job, text):
+def generation(cfg, job, root):
+    """Quote first; spend only after the creator's YES; insert the shot as a new version."""
+    from connectors import gen_api, finish as studio_finish
+    folder = root / job['id']
+    folder.mkdir(exist_ok=False)
+    parent = json.loads((root / job['parent'] / 'result.json').read_text())
+    if job['action'] == 'generate':
+        q = gen_api.quote(job['title'], job['query'], cfg.get('monthly_video_cap_usd', 20.0))
+        return 'completed', {'state': 'awaiting_approval', 'quote': q, 'finished': parent['preview'], 'source': parent['source'],
+                             'options': parent.get('options'), 'title': parent.get('title'), 'project_id': parent.get('project_id')}
+    q = parent['quote']
+    frame = folder / 'reference.png'
+    subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', '2.5', '-i', parent['finished'], '-frames:v', '1', str(frame)], check=True)
+    shot = gen_api.generate(q, job['query'], folder / 'shot', image=frame)
+    r = studio_finish.insert_shot(parent['finished'], shot['video'], folder / 'with-shot')
+    return 'completed', {'state': 'generated', 'model': q['model'], 'cost_usd': q['cost_usd'], 'shot': shot['video'],
+                         'preview': r['output'], 'preview_sha256': _sha(r['output']), 'source': parent['source'],
+                         'options': parent.get('options'), 'title': parent.get('title'), 'project_id': parent.get('project_id')}
+
+
+def say(cfg, job, text, bind=False):
     try:
-        remote(cfg, {'op': 'notify', 'id': job['id'], 'text': text})
+        remote(cfg, {'op': 'notify', 'id': job['id'], 'text': text, 'bind': bind})
     except Exception as e:
         print(json.dumps({'id': job['id'], 'notify_failed': str(e)[:200]}))
 
@@ -184,6 +206,8 @@ def main():
     with (root/'.worker.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         for job in remote(cfg, {'op': 'pending'}):
+            if a.deliver_ready and job['action'] == 'approve':
+                say(cfg, job, 'Approved. Generating the shot now; this can take a few minutes.')
             if a.deliver_ready and job['action'] in ('alternatives', 'finish'):
                 say(cfg, job, 'Got it. Transcribing and designing your edit now. About a minute.' if job['action'] == 'alternatives'
                     else f"Rendering the full short in style {job.get('style')}. About a minute.")
@@ -191,12 +215,15 @@ def main():
                 state, result = process(cfg, job, lambda identity: remote(cfg, {'op': 'attachment', 'id': identity}))
             except Exception as e:
                 state, result = 'failed', {'error': str(e)}
-            if job['action'] in ('alternatives', 'finish') and state == 'completed':
+            if job['action'] in ('alternatives', 'finish', 'generate', 'approve') and state == 'completed':
                 atomic(root / job['id'] / 'result.json', result)
             remote(cfg, {'op': 'finish', 'id': job['id'], 'state': state, 'result': result})
             print(json.dumps({'id': job['id'], 'state': state, 'result': result}))
-            if a.deliver_ready and state == 'failed' and job['action'] in ('alternatives', 'finish'):
+            if a.deliver_ready and state == 'failed' and job['action'] in ('alternatives', 'finish', 'generate', 'approve'):
                 say(cfg, job, 'That did not work: ' + str(result.get('error', ''))[:200] + ' Nothing earlier was overwritten.')
+            if a.deliver_ready and state=='completed' and result.get('state')=='awaiting_approval':
+                say(cfg, job, result['quote']['message'], bind=True)
+                continue
             if a.deliver_ready and state=='completed' and result.get('options') and result.get('state')=='alternatives_ready':
                 for o in result['options']:
                     delivered=remote(cfg,{'op':'deliver_option','id':job['id'],'option':o['option'],

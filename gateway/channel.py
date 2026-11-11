@@ -51,8 +51,8 @@ def request(args, root=None):
     root = Path(root) if root else queue_root()
     cfg = config(root)
     action = args['action']
-    if action not in {'library', 'prepare', 'edit', 'preview', 'alternatives', 'finish'}:
-        raise ValueError('Choose library, prepare, edit, preview, alternatives or finish')
+    if action not in {'library', 'prepare', 'edit', 'preview', 'alternatives', 'finish', 'generate', 'approve'}:
+        raise ValueError('Choose library, prepare, edit, preview, alternatives, finish, generate or approve')
     parent = None
     if args.get('parent'):
         parent = json.loads(job_path(root, args['parent']).read_text())
@@ -76,6 +76,16 @@ def request(args, root=None):
             raise ValueError('finish needs style: a letter A-D from the offered alternatives, or a style name')
         if not parent and not args.get('source'):
             raise ValueError('finish needs the replied-to alternatives or finished video, or a source attachment')
+    if action == 'generate':
+        if not parent or (parent.get('result') or {}).get('state') != 'finished':
+            raise ValueError('generate needs a reply to a finished short')
+        if not str(args.get('query', '')).strip() or not str(args.get('title', '')).strip():
+            raise ValueError('generate needs query=<prompt for the shot> and title=<model name from models.json>')
+    if action == 'approve':
+        if not parent or (parent.get('result') or {}).get('state') != 'awaiting_approval':
+            raise ValueError('approve needs a reply to a generation quote')
+        if str(args.get('query', '')).strip().upper() != 'YES':
+            raise ValueError('approve needs query="YES" from the creator, typed by them')
     source = None
     if args.get('source'):
         source = allowed_file(args['source'], cfg['inbound_roots'])
@@ -91,7 +101,7 @@ def request(args, root=None):
     obj = {'id': identity, 'request_key': key, 'action': action,
            'source': str(source) if source else None,
            'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest() if source else None,
-           'query': str(args.get('query', ''))[:150], 'edit': edit,
+           'query': str(args.get('query', ''))[:400], 'edit': edit,
            'style': style, 'title': str(args.get('title', ''))[:80],
            'parent': parent['id'] if parent else None,
            'base_revision': parent.get('result',{}).get('revision') if parent else None,
@@ -117,7 +127,9 @@ EXPLAIN = {
     'awaiting_render_gate': 'The change is saved as a new project version, but no new video exists. A render has to be authorized and run on the workstation. For a finished video now, ask for a style instead (studio_request action finish).',
     'needs_reviewed_cut_recipe': 'This footage has no reviewed recipe for the native editor. To get a finished video now, ask for styles: studio_request action alternatives renders A, B and C from this footage.',
     'alternatives_ready': 'Three style previews were rendered. Reply to one with its letter to get the full finished short.',
-    'finished': 'The finished short is rendered. Reply with another letter for a re-cut.',
+    'finished': 'The finished short is rendered. Reply with another letter for a re-cut, or ask for a generated opening shot.',
+    'awaiting_approval': 'A generated shot was quoted. Nothing is spent until the creator replies YES to the quote.',
+    'generated': 'The generated shot was added to the start of the short as a new version.',
     'failed': 'This step failed; the error says why. Nothing was overwritten.',
 }
 

@@ -77,6 +77,16 @@ There is a huge wave of video skills and engines. Studio wants to conduct them, 
 - **Recreate a look:** `styles.from_reference` turns a reference frame into a new style (dither pair, caption box, text colour). Full motion recreation is next, through HyperFrames and Remotion.
 - **`studio_skills`** recommends the best skills in the ecosystem for a plain request ("animate my intro", "brain rot captions"), with repo, licence and whether Studio already does it. The list grows; every new skill is one entry.
 
+## Add any video model (fal or Replicate)
+
+One adapter, many models. Put your own key on the workstation (`FAL_KEY` or `REPLICATE_API_TOKEN`), copy [`models.example.json`](models.example.json) to `~/.config/hermes-studio/models.json`, and fill in the model ids and prices from the provider's own model page. Then, in the chat:
+
+1. Reply to a finished short: "add a 3-second animated blue intro".
+2. Hermes answers with a quote: the model, the cost (or UNKNOWN if you did not set one), what you spent this month and your cap.
+3. You reply **YES**. Only then does Studio spend: it sends a frame of your footage as the reference, waits for the model, downloads the clip and puts it at the start of your short as a new version.
+
+Keys never leave the workstation. Studio never guesses a price, never spends without your YES, and refuses anything over your monthly cap. API shapes checked against the fal queue and Replicate predictions docs on 11 Nov 2026; tested end to end against a fake provider, not yet against a live paid call.
+
 ## Bring your own tools
 
 Studio is the hub. Plug **any video model** into Hermes with your own account: your own **Higgsfield** (or any other video model) for generated shots, your own **ElevenLabs** for voice, sound effects and music, and your own editor (**Final Cut**, **DaVinci Resolve**, **Premiere**). Keys stay in your environment; Studio never stores or logs them. `studio_doctor` shows which ones are connected. Today these adapters are dry runs that plan the request; paid calls will always ask you first.
@@ -101,7 +111,7 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 54 run, 51 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
+**Tests:** 59 run, 56 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
 
 ### Next: one extraordinary edit, then the whole studio
 

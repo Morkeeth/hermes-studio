@@ -75,9 +75,11 @@ def report(env=None):
     from . import generate as _g
     for name, has_key in _g.connected().items():
         kinds = ', '.join(_g.PROVIDERS[name]['kinds'])
-        op(f'bring your own {name} ({kinds})', EXPERIMENTAL if has_key else SETUP,
+        live = name in ('fal', 'replicate')
+        op(f'bring your own {name} ({kinds})', (READY if live else EXPERIMENTAL) if has_key else SETUP,
            [] if has_key else [f'set {_g.PROVIDERS[name]["env_key"]} with your own {name} key'],
-           'Adapter is a dry run today: plans the request, never sends. Paid calls will always need the owner\'s approval.')
+           ('Live: quote, reply YES, generate, insert as a new version. Add models to ~/.config/hermes-studio/models.json.' if live
+            else 'Adapter is a dry run today: plans the request, never sends.') + ' Paid calls always need the owner\'s approval.')
     op('motion engines (Motion Canvas, Revideo, Manim)', UNAVAILABLE, ['not built yet'])
 
     chat = {'callable_from_chat': ['studio_request: library, prepare, edit (music level), preview, alternatives, finish', 'studio_status'],

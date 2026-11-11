@@ -1,0 +1,17 @@
+{
+  "_readme": "Copy to ~/.config/hermes-studio/models.json. Use model ids and prices from the provider's own model page; Studio never guesses a price. Leave cost_usd out if you do not know it: the chat will say UNKNOWN before you approve.",
+  "my-fal-video": {
+    "provider": "fal",
+    "model": "<model id from fal.ai/models, e.g. owner/app/endpoint>",
+    "cost_usd": null,
+    "image_field": "image_url",
+    "extra": {}
+  },
+  "my-replicate-video": {
+    "provider": "replicate",
+    "model": "<owner/name from replicate.com>",
+    "cost_usd": null,
+    "image_field": "image",
+    "extra": {}
+  }
+}

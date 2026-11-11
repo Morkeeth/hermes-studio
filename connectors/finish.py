@@ -306,3 +306,21 @@ def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-
         options.append({'option': letter, 'style': name, 'label': _styles.get(name)['label'], 'preview': r['output']})
     return {'ok': True, 'question': 'Pick a style: ' + ', '.join(f"{o['option']} {o['label']}" for o in options), 'options': options,
             'title': title or hook_title(words), 'transcript': ' '.join(w['text'] for w in words)[:400]}
+
+
+def insert_shot(finished, shot, out_dir, seconds=3.0):
+    """Put a generated shot at the start of a finished short, as a new version. Nothing is overwritten."""
+    out = Path(out_dir).expanduser(); out.mkdir(parents=True, exist_ok=True)
+    dest = out / 'final.mp4'
+    if dest.exists():
+        raise FileExistsError(f'{out} already holds a render')
+    with tempfile.TemporaryDirectory() as tmp:
+        sfx = Path(tmp) / 'hit.wav'
+        render_sfx([max(0.2, seconds - 0.2)], seconds, seconds + 0.01, sfx)
+        v = (f"[0:v]trim=0:{seconds},setpts=PTS-STARTPTS,scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},setsar=1,format=yuv420p[g];"
+             f"[1:v]fps={FPS},setsar=1,format=yuv420p[f];[g][f]concat=n=2:v=1:a=0[v];"
+             f"[2:a]atrim=0:{seconds},aresample=48000[ga];[1:a]aresample=48000[fa];[ga][fa]concat=n=2:v=0:a=1[a]")
+        _run(['ffmpeg', '-nostdin', '-v', 'error', '-i', str(shot), '-i', str(finished), '-i', str(sfx),
+              '-filter_complex', v, '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p',
+              '-c:a', 'aac', '-movflags', '+faststart', str(dest)])
+    return {'ok': True, 'output': str(dest), 'seconds': round(_duration(dest), 2)}

@@ -11,6 +11,8 @@ import os
 PROVIDERS = {
     'higgsfield': {'env_key': 'HIGGSFIELD_API_KEY', 'kinds': ['video', 'image'],
                    'docs': 'unverified: confirm current API or MCP server before wiring'},
+    'fal': {'env_key': 'FAL_KEY', 'kinds': ['video', 'image'], 'docs': 'live adapter: connectors/gen_api.py (quote, YES, generate)'},
+    'replicate': {'env_key': 'REPLICATE_API_TOKEN', 'kinds': ['video', 'image'], 'docs': 'live adapter: connectors/gen_api.py (quote, YES, generate)'},
     'elevenlabs': {'env_key': 'ELEVENLABS_API_KEY', 'kinds': ['voice', 'sound_effect', 'music'],
                    'docs': 'unverified: confirm current API before wiring'},
 }
