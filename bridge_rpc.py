@@ -41,6 +41,13 @@ def rpc(root, payload):
         obj['delivery']=delivered
         atomic(job,obj)
         return delivered
+    if op == 'notify':
+        # Progress and wrap-up text for a real job, to the configured owner chat only.
+        from telegram_delivery import send_text
+        sent=send_text(payload['text'],config(root))
+        obj.setdefault('notes',[]).append({'text':str(payload['text'])[:300],'state':sent['state']})
+        atomic(job,obj)
+        return sent
     if op == 'deliver_option':
         # One style alternative per message, so a reply to it resolves to this job and option.
         if obj['action'] != 'alternatives' or obj['state'] != 'completed':

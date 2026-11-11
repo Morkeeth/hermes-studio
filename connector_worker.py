@@ -134,7 +134,8 @@ def creative(cfg, job, fetch, root):
         for o in r['options']:
             o['preview_sha256'] = _sha(o['preview'])
         return 'completed', {'state': 'alternatives_ready', 'source': str(source), 'options': r['options'],
-                             'question': r['question'], 'project_id': job['id'], 'title': job.get('title', '')}
+                             'question': r['question'], 'project_id': job['id'], 'title': job.get('title') or r.get('title', ''),
+                             'transcript': r.get('transcript', '')}
     # finish: the source and offered options come from the replied-to parent job, or from a new attachment
     parent = json.loads((root / job['parent'] / 'result.json').read_text()) if job.get('parent') else None
     source = Path(parent['source']) if parent else _receive(job, fetch, folder)
@@ -155,6 +156,21 @@ def creative(cfg, job, fetch, root):
                          'project_id': (parent or {}).get('project_id', job['id'])}
 
 
+def say(cfg, job, text):
+    try:
+        remote(cfg, {'op': 'notify', 'id': job['id'], 'text': text})
+    except Exception as e:
+        print(json.dumps({'id': job['id'], 'notify_failed': str(e)[:200]}))
+
+
+def wrapup(result):
+    lines = [f"Your three previews are ready. Title I picked from what you said: \"{result.get('title') or 'none'}\"."]
+    for o in result['options']:
+        lines.append(f"{o['option']}: {o['label']}")
+    lines.append('Reply to the one you like with its letter for the full finished short. Rendered and sent; I cannot see whether it played on your phone.')
+    return '\n'.join(lines)
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--config', type=Path, required=True)
@@ -168,6 +184,9 @@ def main():
     with (root/'.worker.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         for job in remote(cfg, {'op': 'pending'}):
+            if a.deliver_ready and job['action'] in ('alternatives', 'finish'):
+                say(cfg, job, 'Got it. Transcribing and designing your edit now. About a minute.' if job['action'] == 'alternatives'
+                    else f"Rendering the full short in style {job.get('style')}. About a minute.")
             try:
                 state, result = process(cfg, job, lambda identity: remote(cfg, {'op': 'attachment', 'id': identity}))
             except Exception as e:
@@ -176,11 +195,14 @@ def main():
                 atomic(root / job['id'] / 'result.json', result)
             remote(cfg, {'op': 'finish', 'id': job['id'], 'state': state, 'result': result})
             print(json.dumps({'id': job['id'], 'state': state, 'result': result}))
+            if a.deliver_ready and state == 'failed' and job['action'] in ('alternatives', 'finish'):
+                say(cfg, job, 'That did not work: ' + str(result.get('error', ''))[:200] + ' Nothing earlier was overwritten.')
             if a.deliver_ready and state=='completed' and result.get('options') and result.get('state')=='alternatives_ready':
                 for o in result['options']:
                     delivered=remote(cfg,{'op':'deliver_option','id':job['id'],'option':o['option'],
                         'base64':base64.b64encode(Path(o['preview']).read_bytes()).decode()})
                     print(json.dumps({'id':job['id'],'option':o['option'],'delivery':delivered}))
+                say(cfg, job, wrapup(result))
                 continue
             if a.deliver_ready and state=='completed' and result.get('preview'):
                 delivered=remote(cfg,{'op':'deliver','id':job['id'],

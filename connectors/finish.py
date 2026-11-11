@@ -101,6 +101,22 @@ def chunk_words(words, max_words=3, max_gap=0.35):
     return out
 
 
+FILLER = {'so', 'um', 'uh', 'okay', 'ok', 'like', 'well', 'yeah', 'and'}
+
+
+def hook_title(words, max_words=6):
+    """An editor's first pass at a title: the first complete sentence, filler trimmed, at most six words."""
+    out = []
+    for w in words:
+        t = w['text'].strip()
+        if not out and t.lower().strip('.,!?') in FILLER:
+            continue
+        out.append(t.strip('.,!?') if t[-1:] in '.!?' else t)
+        if t[-1:] in '.!?' or len(out) >= max_words:
+            break
+    return ' '.join(out).strip(',')
+
+
 def write_srt(chunks, path, offset=0.0):
     def ts(s):
         ms = int(round(max(0.0, s) * 1000)); h, ms = divmod(ms, 3600000); m, ms = divmod(ms, 60000); sec, ms = divmod(ms, 1000)
@@ -232,7 +248,7 @@ def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_sec
             words = transcribe_words(raw, model, tmp) if _has_audio(raw) else []
         words = [w for w in words if w['start'] < dur]
         chunks = chunk_words(words, max_words=st['words'])
-        title = title or ' '.join(w['text'] for w in words[:4]) or 'HERMES STUDIO'
+        title = title or hook_title(words) or 'HERMES STUDIO'
         _run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', str(min(0.5, dur / 2)), '-i', str(raw), '-frames:v', '1', str(tmp / 'first.png')])
         (tmp / 'intro').mkdir(); (tmp / 'caps').mkdir()
         hits = render_intro(tmp / 'first.png', title, intro_seconds, tmp / 'intro', st)
@@ -277,7 +293,7 @@ def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_sec
             'seconds': round(_duration(final), 2), 'subtitle_chunks': len(chunks)}
 
 
-def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-short', 'brain-rot', 'hermes-dither'), seconds=6.0):
+def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-short', 'brain-rot', 'hermes-dither'), seconds=10.0):
     """Render the same opening in several styles so Hermes can offer A/B/C in the chat."""
     raw = Path(raw).expanduser().resolve(strict=True)
     out = Path(out_dir).expanduser(); out.mkdir(parents=True, exist_ok=True)
@@ -288,4 +304,5 @@ def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-
     for letter, name in zip('ABCDEFG', styles):
         r = finish(raw, out / f'{letter}-{name}', title=title, words=words, style=name, max_seconds=seconds, intro_seconds=1.2)
         options.append({'option': letter, 'style': name, 'label': _styles.get(name)['label'], 'preview': r['output']})
-    return {'ok': True, 'question': 'Pick a style: ' + ', '.join(f"{o['option']} {o['label']}" for o in options), 'options': options}
+    return {'ok': True, 'question': 'Pick a style: ' + ', '.join(f"{o['option']} {o['label']}" for o in options), 'options': options,
+            'title': title or hook_title(words), 'transcript': ' '.join(w['text'] for w in words)[:400]}

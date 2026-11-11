@@ -1,5 +1,5 @@
 name: hermes-studio
-version: 0.7.1
+version: 0.8.0
 requires_hermes: ">=0.21.5"
 description: Video studio for Hermes. Edit video, cut a Short, TikTok or Reel, add animated captions and music, and change it by replying in chat. Local footage, editable projects. Start with studio_doctor.
 provides_tools: [studio_take, studio_cut, studio_gate, studio_verify_post, studio_library, studio_build, studio_request, studio_status, studio_connectors, studio_timeline, studio_generate, studio_doctor, studio_finish, studio_alternatives, studio_skills]

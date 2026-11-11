@@ -92,5 +92,23 @@ class HeroLoop(unittest.TestCase):
             self.assertIn('no new video exists', ch.explain({'state': 'awaiting_render_gate', 'result': {'state': 'awaiting_render_gate'}})['explain'])
 
 
+class Conversation(unittest.TestCase):
+    def test_wrapup_names_title_options_and_honest_limits(self):
+        text = connector_worker.wrapup({'title': 'welcome to Hermes Studio', 'options': [{'option': 'A', 'label': 'Clean short'}, {'option': 'B', 'label': 'Brain rot'}]})
+        self.assertIn('welcome to Hermes Studio', text)
+        self.assertIn('B: Brain rot', text)
+        self.assertIn('cannot see whether it played', text)
+
+    def test_notify_goes_through_the_bridge_to_the_owner_chat_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            gw = Path(tmp); (gw / 'jobs').mkdir()
+            (gw / 'config.json').write_text(json.dumps({'inbound_roots': [tmp], 'delivery_chat_id': 42, 'allowed_chat_ids': [42]}))
+            job = channel.request({'action': 'library', 'query': 'x', 'request_key': 'k1'}, gw)
+            with patch('telegram_delivery.send_text', return_value={'state': 'sent', 'message_id': 9}) as st:
+                r = bridge_rpc.rpc(gw, {'op': 'notify', 'id': job['id'], 'text': 'ready'})
+            self.assertEqual(r['state'], 'sent')
+            self.assertEqual(st.call_args[0][0], 'ready')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -57,3 +57,21 @@ def send_preview(file, expected_sha256, cfg, receipt, caption='Your Studio previ
     except Exception as exc:
         # Exception URLs can contain the bot token. Never return the exception text.
         raise RuntimeError('Delivery unconfirmed ('+type(exc).__name__+'); inspect receipt before any retry') from None
+
+
+def send_text(text, cfg):
+    """One plain status message to the configured owner chat. No retries, no other recipients."""
+    chat = str(cfg['delivery_chat_id'])
+    if chat not in [str(c) for c in cfg['allowed_chat_ids']]:
+        raise ValueError('Delivery target is not explicitly allowed')
+    token = secret_value()
+    if not token:
+        raise ValueError('Gateway bot token unavailable')
+    body = json.dumps({'chat_id': chat, 'text': str(text)[:1500]}).encode()
+    req = urllib.request.Request('https://api.telegram.org/bot' + token + '/sendMessage', data=body, headers={'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.load(response)
+        return {'state': 'sent' if result.get('ok') else 'unconfirmed', 'message_id': result.get('result', {}).get('message_id')}
+    except Exception as exc:
+        raise RuntimeError('Status message unconfirmed (' + type(exc).__name__ + ')') from None
