@@ -6,10 +6,19 @@ request returns the plan it would send and the reasons it was not sent.
 """
 import os
 
+# Bring your own provider: each user connects their own account with their own key.
+# Keys are read from the environment only; Studio never stores or logs them.
 PROVIDERS = {
     'higgsfield': {'env_key': 'HIGGSFIELD_API_KEY', 'kinds': ['video', 'image'],
                    'docs': 'unverified: confirm current API or MCP server before wiring'},
+    'elevenlabs': {'env_key': 'ELEVENLABS_API_KEY', 'kinds': ['voice', 'sound_effect', 'music'],
+                   'docs': 'unverified: confirm current API before wiring'},
 }
+
+
+def connected():
+    """Which of the user's own providers have a key present. Never returns the key."""
+    return {name: bool(os.environ.get(p['env_key'])) for name, p in PROVIDERS.items()}
 
 
 def plan(provider, prompt, kind='video', seconds=5, allow_spend=False, monthly_cap_usd=20.0):

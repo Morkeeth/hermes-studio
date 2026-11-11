@@ -72,8 +72,12 @@ def report(env=None):
     op('export to Final Cut or DaVinci Resolve (FCPXML)', EXPERIMENTAL, [], 'Cuts only; not yet opened in the editors.')
     op('OpenTimelineIO export and import', EXPERIMENTAL, [],
        'One video track of cuts; captions and music not carried.' + ('' if env.get('opentimelineio') else ' Works without the opentimelineio package.'))
-    op('generate a shot with a video model (Higgsfield)', UNAVAILABLE, ['no provider is wired; studio_generate is a dry run'],
-       'Paid generation will always need the owner\'s approval.')
+    from . import generate as _g
+    for name, has_key in _g.connected().items():
+        kinds = ', '.join(_g.PROVIDERS[name]['kinds'])
+        op(f'bring your own {name} ({kinds})', EXPERIMENTAL if has_key else SETUP,
+           [] if has_key else [f'set {_g.PROVIDERS[name]["env_key"]} with your own {name} key'],
+           'Adapter is a dry run today: plans the request, never sends. Paid calls will always need the owner\'s approval.')
     op('motion engines (Motion Canvas, Revideo, Manim)', UNAVAILABLE, ['not built yet'])
 
     counts = {s: sum(1 for o in ops if o['status'] == s) for s in (READY, SETUP, EXPERIMENTAL, UNAVAILABLE)}

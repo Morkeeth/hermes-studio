@@ -31,6 +31,10 @@ Ask Hermes for any video job ("make a Short from this", "add captions", "cut a t
 
 <br clear="right">
 
+## Bring your own tools
+
+Studio is the hub. Plug **any video model** into Hermes with your own account: your own **Higgsfield** (or any other video model) for generated shots, your own **ElevenLabs** for voice, sound effects and music, and your own editor (**Final Cut**, **DaVinci Resolve**, **Premiere**). Keys stay in your environment; Studio never stores or logs them. `studio_doctor` shows which ones are connected. Today these adapters are dry runs that plan the request; paid calls will always ask you first.
+
 ## The vision: one studio, every video tool
 
 Every creative tool is getting an agent. None of them talk to each other. Hermes Studio is the conductor: one conversation, one shared timeline, every tool you already love.

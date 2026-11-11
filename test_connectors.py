@@ -118,20 +118,19 @@ class Doctor(unittest.TestCase):
                               'faster_whisper': False, 'opentimelineio': False, 'video_editor_plugin': False, 'channel_config': False})
         self.assertEqual(r['summary']['ready'], 0)
         self.assertIn('FFmpeg', r['next_step'])
-        gen = next(o for o in r['operations'] if 'Higgsfield' in o['operation'])
-        self.assertEqual(gen['status'], 'unavailable')
+        gen = next(o for o in r['operations'] if 'higgsfield' in o['operation'])
+        self.assertEqual(gen['status'], 'needs_setup')
 
     def test_full_machine_reports_ready_core_but_honest_extras(self):
         r = cx.doctor.report({'ffmpeg': '/x/ffmpeg', 'ffprobe': '/x/ffprobe', 'ffmpeg_features': ['libx264', 'loudnorm', 'freezedetect'],
                               'whisper_cli': '/x/whisper-cli', 'whisper_model': '/x/m.bin', 'faster_whisper': False,
                               'opentimelineio': True, 'video_editor_plugin': True, 'channel_config': True})
         self.assertEqual(r['summary']['ready'], 5)
-        self.assertEqual(r['summary']['unavailable'], 2)
-        self.assertEqual(r['summary']['experimental'], 2)
+        self.assertEqual(r['summary']['unavailable'], 1)
 
     def test_real_environment_runs_read_only(self):
         r = cx.doctor.report()
-        self.assertEqual(len(r['operations']), 9)
+        self.assertEqual(len(r['operations']), 10)
 
 
 if __name__ == '__main__':
