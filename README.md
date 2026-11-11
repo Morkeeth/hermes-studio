@@ -1,38 +1,43 @@
+<p align="center"><img src="docs/img/hermes-banner.png" alt="Hermes Agent" width="560"></p>
+
 # Hermes Studio
 
-**The video studio for Hermes Agent.** Send raw clips in a chat. Hermes finds the best take, cuts a vertical short with animated captions and music from your own library, checks it, and sends the preview back. Reply to the video to change it.
+### Video editing becomes a conversation.
 
-Your footage stays on your machine. Every edit is a real, editable project, not chat prose.
+Send raw clips in a chat. Hermes finds the best take, cuts a vertical short with animated captions and music from your own library, checks it, and sends it back. Reply to the video to change it.
+
+Your footage never leaves your machine. Every edit is a real, editable project.
+
+<p align="center">
+  <img src="docs/img/telegram-reply.png" alt="Replying to a delivered preview in Telegram" width="31%">
+  <img src="docs/img/telegram-tools.png" alt="Hermes calling the Studio tools" width="31%">
+  <img src="docs/img/telegram-answer.png" alt="Hermes finds the project and queues the edit" width="31%">
+</p>
+<p align="center"><sub>Live, 11 Nov 2026: reply "make the music quieter" to a preview. Hermes finds the matching project and queues a new revision.</sub></p>
 
 ## Seen working
 
-- **Reply to edit, live in Telegram (11 Nov 2026).** Replying "make the music quieter" to a delivered preview created a new editable project revision with the music lowered. The old preview is invalidated. The final re-export waits on the render gate.
-- One real take, end to end: local transcription, library music, editable portrait cut with animated captions, checked export. The finished short passed frame, motion and audio measurements.
+<img src="docs/img/finished-short.png" alt="A finished short with animated captions" width="200" align="right">
 
-## Next: one studio for every video tool
+- **Reply to edit, live in Telegram.** A reply to a delivered preview resolves the exact project behind it and creates a new editable revision with the music lowered. The old preview is invalidated. The re-export waits on the render gate.
+- **One real take, end to end.** Local transcription, library music, an editable portrait cut with animated captions, and a checked export. The finished short passed frame, motion and audio measurements.
+- **Local by design.** whisper.cpp on your machine, your own media library, no paid models.
 
-Hermes Studio is growing into the one place where Hermes reaches every video tool through a single shared timeline (OpenTimelineIO):
+<br clear="right">
 
-| Group | Today | Next |
+## The vision: one studio, every video tool
+
+Today Hermes Studio edits. Next, it conducts every video tool you already love, through one shared timeline (OpenTimelineIO). One chat drives them all.
+
+| | Today | Next |
 |---|---|---|
-| Editors | hermes-video-editor, FFmpeg | Final Cut and DaVinci Resolve (FCPXML and OTIO), Premiere |
-| Motion | Lottie motion guidance | motion-canvas, revideo, manim |
-| Models | none | Higgsfield and other generation models via MCP, always behind the owner's spending approval |
-| Audio | whisper.cpp, loudness checks, music library | |
-| Review | frame, motion and sound measurements | |
+| **Editors** | hermes-video-editor, FFmpeg | Final Cut Pro, DaVinci Resolve, Premiere Pro |
+| **Generation** | | Higgsfield and the best video and image models, via MCP, always behind the owner's spending approval |
+| **Motion** | Lottie motion guidance | Motion Canvas, Revideo, Manim |
+| **Audio** | whisper.cpp, loudness, your music library | |
+| **Review** | frame, motion and sound measurements | |
 
-The connector layer is in progress on the [studio-connect branch](https://github.com/Morkeeth/hermes-studio/tree/cursor/studio-connect) ([status table](https://github.com/Morkeeth/hermes-studio/blob/cursor/studio-connect/docs/CONNECTORS.md)). It is not part of the released plugin yet.
-
-## What works
-
-- Local transcription with an existing faster-whisper or whisper.cpp model; heuristic hook ranking.
-- Explicit filename search across real media-library folders.
-- One-command, source-bound recipe composition into a native editable portrait project, animated word-entry captions and shelf music.
-- Native export through separately installed hermes-video-editor; technical checks plus supplied hash-bound visual review.
-- SSH queue transport between a gateway and workstation, immutable music-level revisions with stale-reply rejection, and explicit one-attempt Telegram preview delivery.
-- Public-page reachability/title verification when requested; no automatic public posting.
-
-The real demonstration used local transcription, a saved editable project, existing library music, actual Eyes inspection and Showreel hooks/planning. The gateway-to-workstation delivery test reused the exact reviewed export and labelled it unchanged. A live reply edit was verified on 11 Nov 2026 (see above); a complete attachment to new-export round trip in one session is not yet verified. A skill being available does not prove every backend works.
+The connector layer is already in progress on the [studio-connect branch](https://github.com/Morkeeth/hermes-studio/tree/cursor/studio-connect): a shared OTIO timeline, FFmpeg render and FCPXML export for Final Cut and Resolve, 40 passing tests. See its [status table](https://github.com/Morkeeth/hermes-studio/blob/cursor/studio-connect/docs/CONNECTORS.md). It is not part of the released plugin yet.
 
 ## Install
 
