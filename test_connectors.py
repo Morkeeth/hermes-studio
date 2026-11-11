@@ -156,6 +156,12 @@ class Finish(unittest.TestCase):
         self.assertEqual([w['start'] for w in c[0]['words']], [0.1, 0.3])
         self.assertIn('highlight', cx.styles.get('hermes-dither'))
 
+    def test_hook_title_does_not_end_on_a_joining_word(self):
+        ws = [{'text': t} for t in ['the', 'same', 'context', 'no', 'output', 'just']]
+        self.assertEqual(cx.finish.hook_title(ws), 'the same context no output')
+        ws = [{'text': t} for t in ['So', 'welcome', 'to', 'Hermes', 'Studio.', 'Next']]
+        self.assertEqual(cx.finish.hook_title(ws), 'welcome to Hermes Studio')
+
     def test_chunks_never_linger(self):
         c = cx.finish.chunk_words([{'text': 'end', 'start': 1.0, 'end': 9.0}])
         self.assertLess(c[0]['end'], 2.2)

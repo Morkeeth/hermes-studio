@@ -115,7 +115,13 @@ def hook_title(words, max_words=6):
         out.append(t.strip('.,!?') if t[-1:] in '.!?' else t)
         if t[-1:] in '.!?' or len(out) >= max_words:
             break
+    # Without punctuation the cut can land mid-thought: never end a title on a small joining word.
+    while len(out) > 2 and out[-1].lower().strip(',') in TAIL:
+        out.pop()
     return ' '.join(out).strip(',')
+
+
+TAIL = {'no', 'just', 'the', 'a', 'an', 'to', 'of', 'and', 'or', 'but', 'so', 'it', 'is', 'that', 'for', 'with', 'my', 'in', 'on', 'at'}
 
 
 def write_srt(chunks, path, offset=0.0):
