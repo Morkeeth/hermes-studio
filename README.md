@@ -39,7 +39,7 @@ The old timeline is a strip of clips you drag around. In Hermes Studio the timel
 
 Hermes talks it through with you. Ask for a **Short** or full **brain rot**, and Hermes answers with alternatives right in the chat: a clean short, a brain-rot cut, the Hermes dither look. Pick one, keep directing. You pick the style; Hermes picks the tools.
 
-Working today: versions from raw footage to subtitles, audio repair, kinetic intro and sound design (`studio_finish`), reply-to-edit on music level, and export to Final Cut and Resolve through OpenTimelineIO. Next: style alternatives in chat and the dashed connectors.
+Status, in one place: `studio_finish` and the style alternatives render on the workstation today, from fresh raw footage. The Telegram loop (send footage, get A/B/C, reply a letter, get the finished short) is wired through the queue and tested end to end against a fake Telegram (`test_hero_loop.py`); it is deployed on the live gateway (11 Nov, 22:40) with a queue round trip verified; the first real footage run through Telegram is next. Reply-to-edit on music level and export to Final Cut and Resolve through OpenTimelineIO also work today. The dashed connectors are next.
 
 ## New: `studio_finish`, raw footage to a finished short
 
