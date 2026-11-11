@@ -134,7 +134,7 @@ def creative(cfg, job, fetch, root):
     model = cfg.get('whisper_model')
     if job['action'] == 'alternatives':
         source = _receive(job, fetch, folder)
-        r = studio_finish.alternatives(source, folder / 'alternatives', job.get('title', ''), model, music_beds=cfg.get('music_beds'))
+        r = studio_finish.alternatives(source, folder / 'alternatives', job.get('title', ''), model, music_beds=cfg.get('music_beds'), broll=cfg.get('broll'))
         for o in r['options']:
             o['preview_sha256'] = _sha(o['preview'])
         return 'completed', {'state': 'alternatives_ready', 'source': str(source), 'options': r['options'],
@@ -154,7 +154,7 @@ def creative(cfg, job, fetch, root):
     title = job.get('title') or (parent or {}).get('title', '')
     bed = (cfg.get('music_beds') or {}).get(style)
     r = studio_finish.finish(source, folder / 'finished', title=title, model=model, style=style,
-                             music=bed, music_db=studio_styles.get(style).get('music_db', -20))
+                             music=bed, music_db=studio_styles.get(style).get('music_db', -20), broll=cfg.get('broll'))
     revision = ((parent or {}).get('revision') or 0) + (1 if parent and parent.get('state') == 'finished' else 0)
     return 'completed', {'state': 'finished', 'source': str(source), 'style': style, 'title': title,
                          'preview': r['output'], 'preview_sha256': _sha(r['output']), 'captions': r['captions'],
@@ -232,7 +232,7 @@ def revise(cfg, job, root):
             layout = studio_finish.audio_layout(parent['source'])
             skipped.append('quieter music: ' + (layout['note'] if layout['streams'] == 1 else 'no separate music track in this source'))
     r = studio_finish.finish(parent['source'], folder / 'revised', title=title, words=recipe.get('words'), style=st,
-                             intro_seconds=intro, start_at=start, music=music, music_db=music_db)
+                             intro_seconds=intro, start_at=start, music=music, music_db=music_db, broll=(recipe.get('broll') if str(recipe.get('broll') or '').startswith('/') else None) or cfg.get('broll'))
     return 'completed', {'state': 'revised', 'style': base, 'changed': changed, 'skipped': skipped, 'title': title,
                          'preview': r['output'], 'preview_sha256': _sha(r['output']), 'recipe': r['recipe'], 'captions': r['captions'],
                          'source': parent['source'], 'options': parent.get('options'),

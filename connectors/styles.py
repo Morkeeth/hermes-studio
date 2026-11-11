@@ -17,7 +17,7 @@ STYLES = {
                     'box': (12, 12, 12), 'text': (255, 255, 255), 'size': 92, 'words': 4, 'y': 0.82,
                     'highlight': (255, 214, 0), 'highlight_text': (12, 12, 12), 'music_db': -24},
     'brain-rot': {'label': 'Brain rot', 'intro_dark': (5, 5, 5), 'intro_light': (255, 228, 0),
-                  'box': (0, 0, 0), 'text': (255, 228, 0), 'size': 170, 'words': 1, 'y': 0.50, 'music_db': -15},
+                  'box': (0, 0, 0), 'text': (255, 228, 0), 'size': 170, 'words': 1, 'y': 0.50, 'music_db': -15, 'split': True},
     'mono-kinetic': {'label': 'Mono kinetic', 'intro_dark': (0, 0, 0), 'intro_light': (255, 255, 255),
                      'box': (255, 255, 255), 'text': (0, 0, 0), 'size': 120, 'words': 2, 'y': 0.72},
 }

@@ -251,7 +251,7 @@ def render_sfx(hits, cut_at, total, path):
 AUDIO_FIX = 'highpass=f=80,afftdn=nf=-25,loudnorm=I=-14:TP=-1.5:LRA=11'
 
 
-def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_seconds=1.6, music_db=-20, style='hermes-dither', max_seconds=None, overwrite=False, start_at=0.0):
+def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_seconds=1.6, music_db=-20, style='hermes-dither', max_seconds=None, overwrite=False, start_at=0.0, broll=None):
     raw = Path(raw).expanduser().resolve(strict=True)
     out = Path(out_dir).expanduser(); out.mkdir(parents=True, exist_ok=True)
     if (out / 'final.mp4').exists() and not overwrite:
@@ -288,7 +288,23 @@ def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_sec
                   '-framerate', str(FPS), '-i', str(tmp / 'caps' / 'c%05d.png'),
                   '-i', str(tmp / 'sfx.wav')]
         d_ms = int(intro_seconds * 1000)
-        v = (f"[1:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},setsar=1[foot];"
+        split = bool(st.get('split'))
+        nxt = 4
+        if split:
+            # brain-rot split screen: the speaker on top, looping B-roll below, captions on the seam.
+            # No B-roll configured: generate our own, a Game of Life in the style colours (rights-free moving dither).
+            if broll:
+                inputs += ['-stream_loop', '-1', '-i', str(Path(broll).expanduser())]
+            else:
+                dark = '#%02x%02x%02x' % tuple(st['intro_dark']); light = '#%02x%02x%02x' % tuple(st['intro_light'])
+                inputs += ['-f', 'lavfi', '-i', f'life=s=135x120:mold=6:r={FPS}:ratio=0.22:death_color={dark}:life_color={light}:mold_color={dark}']
+            b_idx, nxt = nxt, nxt + 1
+            top = (f"[1:v]scale={W}:{H // 2}:force_original_aspect_ratio=increase,crop={W}:{H // 2},fps={FPS},setsar=1[top];"
+                   f"[{b_idx}:v]scale={W}:{H // 2}:force_original_aspect_ratio=increase:flags=neighbor,crop={W}:{H // 2},fps={FPS},setsar=1,trim=0:{dur:.3f},setpts=PTS-STARTPTS[bot];"
+                   f"[top][bot]vstack=inputs=2[foot];")
+        else:
+            top = f"[1:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},setsar=1[foot];"
+        v = (top +
              f"[foot][2:v]overlay=0:{cap_y}:format=auto[capd];"
              f"[0:v]fps={FPS},setsar=1,format=yuv420p[intro];[capd]format=yuv420p[body];"
              f"[intro][body]concat=n=2:v=1:a=0[v]")
@@ -299,7 +315,7 @@ def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_sec
         mix = ['[voice]', '[3:a]']
         if music:
             inputs += ['-stream_loop', '-1', '-i', str(Path(music).expanduser())]
-            a += (f"[4:a]aresample=48000,volume={music_db}dB,atrim=0:{total}[mus];"
+            a += (f"[{nxt}:a]aresample=48000,volume={music_db}dB,atrim=0:{total}[mus];"
                   f"[voice]asplit=2[voice][key];[mus][key]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=300[duck];")
             mix.append('[duck]')
         a += f"{''.join(mix)}amix=inputs={len(mix)}:normalize=0,alimiter=limit=0.95[a]"
@@ -308,7 +324,7 @@ def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_sec
               '-map', '[v]', '-map', '[a]', '-t', f'{total:.3f}', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p',
               '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(final)])
         srt = write_srt(chunks, out / 'captions.srt', offset=intro_seconds)
-        recipe = {'source': str(original), 'start_at': start_at, 'words': all_words, 'title': title, 'style': style if isinstance(style, str) else st, 'intro_seconds': intro_seconds, 'audio_fix': AUDIO_FIX,
+        recipe = {'source': str(original), 'start_at': start_at, 'broll': str(broll) if broll else ('generated: game of life' if st.get('split') else None), 'words': all_words, 'title': title, 'style': style if isinstance(style, str) else st, 'intro_seconds': intro_seconds, 'audio_fix': AUDIO_FIX,
                   'music': str(music) if music else None, 'music_db': music_db, 'chunks': chunks,
                   'sound_design': {'whoosh_at': hits, 'sub_hit_at': intro_seconds}, 'output': str(final)}
         (out / 'finish.json').write_text(json.dumps(recipe, indent=1))
@@ -318,7 +334,7 @@ def finish(raw, out_dir, title='', model=None, words=None, music=None, intro_sec
             'seconds': round(_duration(final), 2), 'subtitle_chunks': len(chunks)}
 
 
-def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-short', 'brain-rot', 'hermes-dither'), seconds=10.0, music_beds=None):
+def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-short', 'brain-rot', 'hermes-dither'), seconds=10.0, music_beds=None, broll=None):
     """Render the same opening in several styles so Hermes can offer A/B/C in the chat."""
     raw = Path(raw).expanduser().resolve(strict=True)
     out = Path(out_dir).expanduser(); out.mkdir(parents=True, exist_ok=True)
@@ -329,7 +345,7 @@ def alternatives(raw, out_dir, title='', model=None, words=None, styles=('clean-
     for letter, name in zip('ABCDEFG', styles):
         bed = (music_beds or {}).get(name)
         r = finish(raw, out / f'{letter}-{name}', title=title, words=words, style=name, max_seconds=seconds, intro_seconds=1.2,
-                   music=bed, music_db=_styles.get(name).get('music_db', -20))
+                   music=bed, music_db=_styles.get(name).get('music_db', -20), broll=broll)
         options.append({'option': letter, 'style': name, 'label': _styles.get(name)['label'], 'preview': r['output']})
     return {'ok': True, 'question': 'Pick a style: ' + ', '.join(f"{o['option']} {o['label']}" for o in options), 'options': options,
             'title': title or hook_title(words), 'transcript': ' '.join(w['text'] for w in words)[:400],

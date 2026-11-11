@@ -171,6 +171,14 @@ class StylesAndSkills(unittest.TestCase):
             for o in r['options']:
                 self.assertTrue(Path(o['preview']).is_file())
 
+    def test_brain_rot_split_screen_renders_with_generated_broll(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = make_clip(Path(tmp) / 'raw.mp4', seconds=2)
+            r = cx.finish.finish(raw, Path(tmp) / 'br', title='Split', words=[{'text': 'go', 'start': 0.2, 'end': 0.5}], style='brain-rot', intro_seconds=0.6)
+            recipe = json.loads(Path(r['recipe']).read_text())
+            self.assertEqual(recipe['broll'], 'generated: game of life')
+            self.assertAlmostEqual(r['seconds'], 2.6, delta=0.25)
+
     def test_brain_rot_is_one_word_at_a_time(self):
         self.assertEqual(cx.styles.get('brain-rot')['words'], 1)
         with self.assertRaises(ValueError):
