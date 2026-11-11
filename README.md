@@ -27,17 +27,21 @@ Your footage never leaves your machine. Every edit is a real, editable project.
 
 ## The vision: one studio, every video tool
 
-Today Hermes Studio edits. Next, it conducts every video tool you already love, through one shared timeline (OpenTimelineIO). One chat drives them all.
+Every creative tool is getting an agent. None of them talk to each other. Hermes Studio is the conductor: one conversation, one shared timeline, every tool you already love.
 
-| | Today | Next |
+You talk. Hermes picks the take, cuts it in your editor, animates it in your motion engine, generates the missing shot with the best model for the job, checks every frame, and hands you back an editable project. You stay the director. Hermes does the crew.
+
+The connector layer ships in this release (v0.6.0). Everything goes through one OpenTimelineIO timeline, so adding a tool means writing one adapter.
+
+| | Working now | Next |
 |---|---|---|
-| **Editors** | hermes-video-editor, FFmpeg | Final Cut Pro, DaVinci Resolve, Premiere Pro |
-| **Generation** | | Higgsfield and the best video and image models, via MCP, always behind the owner's spending approval |
-| **Motion** | Lottie motion guidance | Motion Canvas, Revideo, Manim |
-| **Audio** | whisper.cpp, loudness, your music library | |
+| **Editors** | FFmpeg render, OpenTimelineIO in and out, FCPXML export for **Final Cut Pro** and **DaVinci Resolve**, hermes-video-editor | Resolve scripting, **Premiere Pro** |
+| **Generation** | `studio_generate` plans requests for **Higgsfield** (dry run, never spends) | Higgsfield and the best video and image models via MCP, always behind the owner's spending approval |
+| **Motion** | Lottie motion guidance | **Motion Canvas**, **Revideo**, **Manim** |
+| **Audio** | whisper.cpp, loudness, your music library | voice and music models |
 | **Review** | frame, motion and sound measurements | |
 
-The connector layer is already in progress on the [studio-connect branch](https://github.com/Morkeeth/hermes-studio/tree/cursor/studio-connect): a shared OTIO timeline, FFmpeg render and FCPXML export for Final Cut and Resolve, 40 passing tests. See its [status table](https://github.com/Morkeeth/hermes-studio/blob/cursor/studio-connect/docs/CONNECTORS.md). It is not part of the released plugin yet.
+New tools: `studio_connectors` lists every connector with its real status, `studio_timeline` writes one edit as OTIO and FCPXML and can render it with FFmpeg, `studio_generate` plans a generation request. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md). The test suite includes an OTIO round trip that fails if a single cut is dropped, read back by the real `opentimelineio` library.
 
 ## Install
 
@@ -56,7 +60,7 @@ hermes plugins doctor /path/to/hermes-studio --ci
 python3 -m unittest discover -s /path/to/hermes-studio -p 'test_*.py' -v
 ```
 
-Core tools: studio_take, studio_library, studio_build, studio_cut, studio_gate, studio_verify_post, studio_request, studio_status. Read [SKILL.md](SKILL.md) for the explicit reviewed-recipe requirements. studio_build accepts recipe, output and render=false by default. A genuine native project template and actual word alignment are required inputs. New footage is not silently given invented timing or story approval.
+Core tools: studio_take, studio_library, studio_build, studio_cut, studio_gate, studio_verify_post, studio_request, studio_status, studio_connectors, studio_timeline, studio_generate. Read [SKILL.md](SKILL.md) for the explicit reviewed-recipe requirements. studio_build accepts recipe, output and render=false by default. A genuine native project template and actual word alignment are required inputs. New footage is not silently given invented timing or story approval.
 
 ## Two-host conversation flow
 
