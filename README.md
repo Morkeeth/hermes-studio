@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/img/hermes-banner.png" alt="Hermes Agent" width="560"></p>
+<p align="center"><img src="docs/img/hermes-girl.png" alt="Hermes" width="110">&nbsp;&nbsp;&nbsp;<img src="docs/img/hermes-banner.png" alt="Hermes Agent" width="520"></p>
 
 # Hermes Studio
 
