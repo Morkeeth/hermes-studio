@@ -65,6 +65,19 @@ class Approval(unittest.TestCase):
         self.assertIn('YES ', r['quote_message'])  # only the chat message carries it
         self.assertNotIn('approval_code', r['quote'])
 
+    def test_code_cannot_be_recovered_offline_from_what_the_agent_can_read(self):
+        import hashlib
+        r = self.quote_job()
+        code = r['quote_message'].split('YES ')[1].split()[0]
+        public = json.loads((self.ws / ('a' * 32) / 'result.json').read_text())
+        text = json.dumps(public)
+        self.assertNotIn(code, text)
+        self.assertNotIn('approval_hash', text)
+        # nothing in it is a digest of the code with any public field
+        digests = {hashlib.sha256((code + public['quote'].get(a, '') + public['quote'].get(b, '')).encode()).hexdigest()
+                   for a in ('prompt', 'model', '') for b in ('prompt', 'model', '')}
+        self.assertFalse(any(dg in text for dg in digests))
+
     def test_agent_plain_yes_is_refused_at_the_gateway(self):
         gw = Path(self.tmp.name) / 'gw'; (gw / 'jobs').mkdir(parents=True)
         (gw / 'config.json').write_text(json.dumps({'inbound_roots': [self.tmp.name], 'delivery_chat_id': 1, 'allowed_chat_ids': [1]}))

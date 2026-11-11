@@ -1,5 +1,5 @@
 {
-  "_readme": "Copy to ~/.config/hermes-studio/models.json. Use model ids and prices from the provider's own model page; Studio never guesses a price. The monthly cap is hard: a model with neither cost_usd nor your own max_usd is blocked, because a cap cannot be enforced against an unknown price.",
+  "_readme": "Copy to ~/.config/hermes-studio/models.json. Use model ids and the fixed per-call price from the provider's own model page. A model without cost_usd is blocked. The monthly cap counts these declared prices; Studio cannot see or limit what the provider actually charges, so check your provider dashboard.",
   "my-fal-video": {
     "provider": "fal",
     "model": "<model id from fal.ai/models, e.g. owner/app/endpoint>",

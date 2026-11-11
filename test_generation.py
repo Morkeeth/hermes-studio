@@ -77,11 +77,11 @@ class HardCap(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 gen_api.generate(q, 'YES ' + q['approval_code'], tempfile.mkdtemp())
 
-    def test_your_own_maximum_makes_an_unknown_price_enforceable(self):
+    def test_a_local_maximum_is_not_treated_as_a_price(self):
+        # a max_usd only lives on this Mac; the provider could charge more, so it must not unblock a call
         with Env({'capped': {'provider': 'fal', 'model': 'fal-ai/c', 'max_usd': 3.0}}):
             q = gen_api.quote('capped', 'x')
-            self.assertEqual(q['blockers'], [])
-            self.assertIn('at most $3.00', q['message'])
+            self.assertTrue(any('price unknown' in b for b in q['blockers']))
 
     def test_cap_is_rechecked_when_money_moves(self):
         with Env({'twelve': {'provider': 'fal', 'model': 'fal-ai/t', 'cost_usd': 12.0}}):

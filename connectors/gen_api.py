@@ -53,8 +53,8 @@ def _record(entry):
 
 def _reserve(q):
     """Under an exclusive lock: recheck spent + this call against the cap, then record it before any money moves.
-    Two approvals racing for the last dollars cannot both pass. Charges are estimates from models.json; the
-    providers' queue APIs do not return the charge, so reconcile against the provider dashboard."""
+    Two approvals racing for the last dollars cannot both pass. The cap counts the prices you declare in models.json.
+    Studio cannot see or limit what the provider actually charges; reconcile against the provider dashboard."""
     if q.get('ceiling_usd') is None:
         raise PermissionError('price unknown: a hard cap cannot be enforced')
     CONFIG.mkdir(parents=True, exist_ok=True)
@@ -64,7 +64,7 @@ def _reserve(q):
         if spent + q['ceiling_usd'] > q['monthly_cap_usd']:
             raise PermissionError(f"monthly cap reached at spend time: ${spent:.2f} spent + ${q['ceiling_usd']:.2f} > ${q['monthly_cap_usd']:.2f}")
         _record({'month': datetime.now().strftime('%Y-%m'), 'at': datetime.now().isoformat(timespec='seconds'),
-                 'model': q['model'], 'cost_usd': q['ceiling_usd'], 'basis': 'cost_usd' if q.get('cost_usd') is not None else 'max_usd',
+                 'model': q['model'], 'cost_usd': q['ceiling_usd'], 'basis': 'declared cost_usd',
                  'state': 'reserved before submit; estimate, reconcile with the provider dashboard'})
 
 
@@ -78,24 +78,23 @@ def quote(name, prompt, monthly_cap_usd=20.0):
     if not prompt.strip():
         raise ValueError('empty prompt')
     cost = m.get('cost_usd')
-    ceiling = cost if cost is not None else m.get('max_usd')  # what the cap is enforced against
+    ceiling = cost  # the cap is enforced against the price you declare; Studio cannot see the provider's real charge
     spent = spent_this_month()
     code = secrets.token_hex(3).upper()
     blockers = []
     if not os.environ.get(PROVIDERS[m['provider']]):
         blockers.append(f"{PROVIDERS[m['provider']]} is not set on the workstation")
     if ceiling is None:
-        blockers.append('price unknown: set cost_usd, or your own max_usd, for this model in models.json; '
-                        'a hard monthly cap cannot be enforced against an unknown price')
+        blockers.append('price unknown: set cost_usd for this model in models.json from the provider\'s fixed price; '
+                        'the monthly cap cannot be enforced against an unknown price')
     elif spent + ceiling > monthly_cap_usd:
         blockers.append(f'would exceed the monthly cap: ${spent:.2f} spent + ${ceiling:.2f} > ${monthly_cap_usd:.2f}')
     q = {'model': name, 'provider': m['provider'], 'provider_model': m['model'], 'prompt': prompt,
-         'cost_usd': cost, 'max_usd': m.get('max_usd'), 'ceiling_usd': ceiling, 'spent_this_month_usd': round(spent, 2), 'monthly_cap_usd': monthly_cap_usd,
+         'cost_usd': cost, 'ceiling_usd': ceiling, 'spent_this_month_usd': round(spent, 2), 'monthly_cap_usd': monthly_cap_usd,
          'approval_code': code, 'approval_hash': hashlib.sha256((code + prompt + name).encode()).hexdigest(),
          'blockers': blockers}
     q['expires_at'] = time.time() + 30 * 60
-    price = (f'about ${cost:.2f}' if cost is not None else
-             f'price unknown, at most ${ceiling:.2f} (your maximum)' if ceiling is not None else 'price UNKNOWN, so it is blocked')
+    price = f'${cost:.2f} as declared in your models.json' if cost is not None else 'price UNKNOWN, so it is blocked'
     q['message'] = (f"Generate with {name} ({m['provider']}): " + price
                     + f". Spent this month ${spent:.2f} of ${monthly_cap_usd:.2f}. To spend, reply exactly: YES {code}  (valid 30 minutes, once)"
                     + (' Blocked: ' + '; '.join(blockers) if blockers else ''))

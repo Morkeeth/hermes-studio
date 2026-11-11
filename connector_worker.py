@@ -173,7 +173,10 @@ def generation(cfg, job, root):
         # The one-time code stays on the workstation and in the creator's chat. The gateway, the agent and
         # studio_status only see the quote without it, so the agent cannot approve on the creator's behalf.
         atomic(folder / 'quote-secret.json', q)
-        public = {k: v for k, v in q.items() if k not in ('approval_code', 'message')}
+        # Only these fields leave the workstation. Nothing derived from the code (no hash, no message) is in them,
+        # so the code cannot be recovered offline from what the gateway or the agent can read.
+        PUBLIC = ('model', 'provider', 'provider_model', 'prompt', 'cost_usd', 'spent_this_month_usd', 'monthly_cap_usd', 'blockers', 'expires_at')
+        public = {k: q[k] for k in PUBLIC if k in q}
         return 'completed', {'state': 'awaiting_approval', 'quote': public, 'quote_message': q['message'],
                              'finished': parent['preview'], 'source': parent['source'],
                              'options': parent.get('options'), 'title': parent.get('title'), 'project_id': parent.get('project_id')}
