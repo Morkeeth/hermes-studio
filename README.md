@@ -15,6 +15,10 @@ Your footage never leaves your machine. Every version is a real, editable projec
 </p>
 <p align="center"><sub>Live, 11 Nov 2026: reply "make the music quieter" to a preview. Hermes finds the matching project and queues a new revision.</sub></p>
 
+## Start here: `studio_doctor`
+
+Ask Hermes for any video job ("make a Short from this", "add captions", "cut a trailer"). Hermes calls `studio_doctor` first: a read-only report of what your machine can do **now**, what **needs setup** and exactly how, what is **experimental**, and what is **unavailable**. It never installs, downloads or spends. On a fresh machine it is never all green, by design.
+
 ## Seen working
 
 <img src="docs/img/finished-short.png" alt="A finished short with animated captions" width="200" align="right">
@@ -47,7 +51,7 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 40 run, 37 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
+**Tests:** 43 run, 40 pass and 3 are skipped because they need real media fixtures. The suite is not an end-to-end validation of the Telegram loop.
 
 ### Next, in order
 
@@ -73,7 +77,7 @@ hermes plugins doctor /path/to/hermes-studio --ci
 python3 -m unittest discover -s /path/to/hermes-studio -p 'test_*.py' -v
 ```
 
-Core tools: studio_take, studio_library, studio_build, studio_cut, studio_gate, studio_verify_post, studio_request, studio_status, studio_connectors, studio_timeline, studio_generate. Read [SKILL.md](SKILL.md) for the explicit reviewed-recipe requirements. studio_build accepts recipe, output and render=false by default. A genuine native project template and actual word alignment are required inputs. New footage is not silently given invented timing or story approval.
+Core tools: studio_take, studio_library, studio_build, studio_cut, studio_gate, studio_verify_post, studio_request, studio_status, studio_connectors, studio_timeline, studio_generate, studio_doctor. Read [SKILL.md](SKILL.md) for the explicit reviewed-recipe requirements. studio_build accepts recipe, output and render=false by default. A genuine native project template and actual word alignment are required inputs. New footage is not silently given invented timing or story approval.
 
 ## Two-host conversation flow
 

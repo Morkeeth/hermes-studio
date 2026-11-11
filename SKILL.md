@@ -1,6 +1,6 @@
 ---
 name: hermes-studio
-description: Compose a local raw take, reviewed script, library music, editable portrait cut and animated captions, then inspect the actual export.
+description: Use for any video request (edit a video, make a Short, TikTok or Reel, captions, music, trailer, animate, B-roll, generate video). Call studio_doctor first to see what this machine can do, then compose a reviewed local take into an editable portrait cut with animated captions and library music, and inspect the export.
 ---
 
 # Take to Short
