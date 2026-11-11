@@ -8,5 +8,6 @@
     "/path/to/your-media"
   ],
   "reviewed_projects": [],
-  "remote_prefix": []
+  "remote_prefix": [],
+  "whisper_model": "/path/to/ggml-large-v3-turbo.bin"
 }

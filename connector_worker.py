@@ -44,6 +44,8 @@ def process(cfg, job, fetch):
     root.mkdir(parents=True, exist_ok=True)
     if job['action'] == 'library':
         return 'completed', discover(cfg['library_roots'], job['query'])
+    if job['action'] in ('alternatives', 'finish'):
+        return creative(cfg, job, fetch, root)
     if job['action'] == 'prepare':
         blob = fetch(job['id'])
         raw = base64.b64decode(blob['base64'], validate=True)
@@ -106,6 +108,53 @@ def process(cfg, job, fetch):
     raise ValueError('Unknown action')
 
 
+def _sha(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _receive(job, fetch, folder):
+    blob = fetch(job['id'])
+    raw = base64.b64decode(blob['base64'], validate=True)
+    if hashlib.sha256(raw).hexdigest() != job['source_sha256']:
+        raise ValueError('Transferred attachment hash mismatch')
+    source = folder / 'source.mp4'
+    source.write_bytes(raw)
+    return source
+
+
+def creative(cfg, job, fetch, root):
+    """Fresh footage to style alternatives, or to a finished short in the picked style. Renders locally, now."""
+    from connectors import finish as studio_finish, styles as studio_styles
+    folder = root / job['id']
+    folder.mkdir(exist_ok=False)
+    model = cfg.get('whisper_model')
+    if job['action'] == 'alternatives':
+        source = _receive(job, fetch, folder)
+        r = studio_finish.alternatives(source, folder / 'alternatives', job.get('title', ''), model)
+        for o in r['options']:
+            o['preview_sha256'] = _sha(o['preview'])
+        return 'completed', {'state': 'alternatives_ready', 'source': str(source), 'options': r['options'],
+                             'question': r['question'], 'project_id': job['id'], 'title': job.get('title', '')}
+    # finish: the source and offered options come from the replied-to parent job, or from a new attachment
+    parent = json.loads((root / job['parent'] / 'result.json').read_text()) if job.get('parent') else None
+    source = Path(parent['source']) if parent else _receive(job, fetch, folder)
+    style = job['style']
+    if len(style) == 1:
+        options = (parent or {}).get('options') or []
+        match = [o for o in options if o['option'] == style.upper()]
+        if not match:
+            raise ValueError('That letter was not one of the offered alternatives')
+        style = match[0]['style']
+    studio_styles.get(style)
+    title = job.get('title') or (parent or {}).get('title', '')
+    r = studio_finish.finish(source, folder / 'finished', title=title, model=model, style=style)
+    revision = ((parent or {}).get('revision') or 0) + (1 if parent and parent.get('state') == 'finished' else 0)
+    return 'completed', {'state': 'finished', 'source': str(source), 'style': style, 'title': title,
+                         'preview': r['output'], 'preview_sha256': _sha(r['output']), 'captions': r['captions'],
+                         'recipe': r['recipe'], 'options': (parent or {}).get('options'), 'revision': revision,
+                         'project_id': (parent or {}).get('project_id', job['id'])}
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--config', type=Path, required=True)
@@ -123,8 +172,16 @@ def main():
                 state, result = process(cfg, job, lambda identity: remote(cfg, {'op': 'attachment', 'id': identity}))
             except Exception as e:
                 state, result = 'failed', {'error': str(e)}
+            if job['action'] in ('alternatives', 'finish') and state == 'completed':
+                atomic(root / job['id'] / 'result.json', result)
             remote(cfg, {'op': 'finish', 'id': job['id'], 'state': state, 'result': result})
             print(json.dumps({'id': job['id'], 'state': state, 'result': result}))
+            if a.deliver_ready and state=='completed' and result.get('options') and result.get('state')=='alternatives_ready':
+                for o in result['options']:
+                    delivered=remote(cfg,{'op':'deliver_option','id':job['id'],'option':o['option'],
+                        'base64':base64.b64encode(Path(o['preview']).read_bytes()).decode()})
+                    print(json.dumps({'id':job['id'],'option':o['option'],'delivery':delivered}))
+                continue
             if a.deliver_ready and state=='completed' and result.get('preview'):
                 delivered=remote(cfg,{'op':'deliver','id':job['id'],
                     'base64':base64.b64encode(Path(result['preview']).read_bytes()).decode()})

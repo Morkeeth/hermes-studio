@@ -31,3 +31,9 @@ Delivery is a separate explicitly enabled worker action to a configured allowed 
 For a real reply to a delivered preview, use studio_status(reply_to_message_id=<actual replied-to Telegram message ID>) to resolve the parent project. Or pass that actual ID to studio_request with action edit. Never guess an ID. Only a confirmed delivery in the configured owner chat resolves; stale revisions fail instead of overwriting edits.
 
 If the host does not expose the replied-to message ID, pass the actual cached replied-video source to studio_status (or to studio_request action edit). It hashes that real attachment and requires a unique matching confirmed delivery in the owner chat. Never infer a match from filename or a similar-looking clip; ambiguity fails.
+
+## Raw footage to a finished short, in the chat
+
+When the user sends fresh footage and asks for a short, animations, subtitles, sound or a style: call `studio_request(action="alternatives", source=<actual downloaded attachment>, title=<a short hook if the user gave one>, request_key="channel:chat:message:alternatives")`. The worker renders three real style previews (A clean short, B brain rot, C Hermes dither) with word-timed subtitles, audio repair, a kinetic intro and sound design, and sends each one as its own message. Ask: "Short or brain rot? Reply A, B or C."
+
+When the user replies to one of those previews with a letter or a style name, call `studio_request(action="finish", reply_to_message_id=<actual replied-to message ID>, style=<letter or name>, request_key=...)`. The full finished short comes back in that style. A reply with another letter to the finished video re-cuts it from the same source as a new revision. A letter that was not offered fails; say so. These renders are local and immediate; there is no paid model call.

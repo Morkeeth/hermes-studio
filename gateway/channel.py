@@ -51,8 +51,8 @@ def request(args, root=None):
     root = Path(root) if root else queue_root()
     cfg = config(root)
     action = args['action']
-    if action not in {'library', 'prepare', 'edit', 'preview'}:
-        raise ValueError('Choose library, prepare, edit or preview')
+    if action not in {'library', 'prepare', 'edit', 'preview', 'alternatives', 'finish'}:
+        raise ValueError('Choose library, prepare, edit, preview, alternatives or finish')
     parent = None
     if args.get('parent'):
         parent = json.loads(job_path(root, args['parent']).read_text())
@@ -69,11 +69,18 @@ def request(args, root=None):
     if action == 'edit':
         if set(edit) != {'music_gain_db'} or type(edit['music_gain_db']) not in (int, float) or not -60 <= edit['music_gain_db'] <= 0:
             raise ValueError('This connector currently supports explicit music_gain_db edits only (-60 to 0)')
+    style = None
+    if action == 'finish':
+        style = str(args.get('style', '')).strip()
+        if not re.fullmatch(r'[A-Da-d]|[a-z][a-z-]{2,30}', style):
+            raise ValueError('finish needs style: a letter A-D from the offered alternatives, or a style name')
+        if not parent and not args.get('source'):
+            raise ValueError('finish needs the replied-to alternatives or finished video, or a source attachment')
     source = None
     if args.get('source'):
         source = allowed_file(args['source'], cfg['inbound_roots'])
-    if action == 'prepare' and not source:
-        raise ValueError('Prepare needs the actual downloaded video attachment path')
+    if action in ('prepare', 'alternatives') and not source:
+        raise ValueError('This action needs the actual downloaded video attachment path')
     key = str(args.get('request_key', ''))
     if not 1 <= len(key) <= 150:
         raise ValueError('Supply a stable request_key, preferably channel:chat:message:operation')
@@ -85,6 +92,7 @@ def request(args, root=None):
            'source': str(source) if source else None,
            'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest() if source else None,
            'query': str(args.get('query', ''))[:150], 'edit': edit,
+           'style': style, 'title': str(args.get('title', ''))[:80],
            'parent': parent['id'] if parent else None,
            'base_revision': parent.get('result',{}).get('revision') if parent else None,
            'project_id': parent.get('result', {}).get('project_id') if parent else args.get('project_id'),
@@ -95,7 +103,7 @@ def request(args, root=None):
         os.link(tmp, path)  # atomic publish without replacing an existing request
     except FileExistsError:
         old = json.loads(path.read_text())
-        fields = ('action', 'source', 'source_sha256', 'query', 'edit', 'parent', 'project_id', 'base_revision')
+        fields = ('action', 'source', 'source_sha256', 'query', 'edit', 'parent', 'project_id', 'base_revision', 'style')
         if any(old.get(k) != obj.get(k) for k in fields):
             raise ValueError('request_key already belongs to a different request')
         return old
@@ -112,10 +120,11 @@ def status(identity=None, root=None, reply_to_message_id=None, source=None):
         checksum=hashlib.sha256(allowed_file(source,config(root)['inbound_roots']).read_bytes()).hexdigest() if source else None
         chat=str(config(root)['delivery_chat_id']);matches=[]
         for path in (root/'jobs').glob('*.json'):
-            job=json.loads(path.read_text());delivery=job.get('delivery',{})
-            bound=(reply_to_message_id is None or delivery.get('message_id')==reply_to_message_id) and (checksum is None or delivery.get('sha256')==checksum)
-            if delivery.get('state')=='sent' and bound and str(delivery.get('chat_id'))==chat:
-                matches.append(job)
+            job=json.loads(path.read_text())
+            for delivery in [job.get('delivery') or {}]+list(job.get('deliveries') or []):
+                bound=(reply_to_message_id is None or delivery.get('message_id')==reply_to_message_id) and (checksum is None or delivery.get('sha256')==checksum)
+                if delivery.get('state')=='sent' and bound and str(delivery.get('chat_id'))==chat:
+                    matches.append(job); break
         if len(matches)!=1:
             raise ValueError('No unique delivered project matches this reply')
         if identity and matches[0]['id']!=identity:
