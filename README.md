@@ -1,6 +1,27 @@
 # Hermes Studio
 
-A conversation-first local video workflow for Hermes Agent. Keep the editor available for detailed control while a gateway companion queues work for your media workstation.
+**The video studio for Hermes Agent.** Send raw clips in a chat. Hermes finds the best take, cuts a vertical short with animated captions and music from your own library, checks it, and sends the preview back. Reply to the video to change it.
+
+Your footage stays on your machine. Every edit is a real, editable project, not chat prose.
+
+## Seen working
+
+- **Reply to edit, live in Telegram (11 Nov 2026).** Replying "make the music quieter" to a delivered preview created a new editable project revision with the music lowered. The old preview is invalidated. The final re-export waits on the render gate.
+- One real take, end to end: local transcription, library music, editable portrait cut with animated captions, checked export. The finished short passed frame, motion and audio measurements.
+
+## Next: one studio for every video tool
+
+Hermes Studio is growing into the one place where Hermes reaches every video tool through a single shared timeline (OpenTimelineIO):
+
+| Group | Today | Next |
+|---|---|---|
+| Editors | hermes-video-editor, FFmpeg | Final Cut and DaVinci Resolve (FCPXML and OTIO), Premiere |
+| Motion | Lottie motion guidance | motion-canvas, revideo, manim |
+| Models | none | Higgsfield and other generation models via MCP, always behind the owner's spending approval |
+| Audio | whisper.cpp, loudness checks, music library | |
+| Review | frame, motion and sound measurements | |
+
+The connector layer is in progress on the [studio-connect branch](https://github.com/Morkeeth/hermes-studio/tree/cursor/studio-connect) ([status table](https://github.com/Morkeeth/hermes-studio/blob/cursor/studio-connect/docs/CONNECTORS.md)). It is not part of the released plugin yet.
 
 ## What works
 
@@ -11,7 +32,7 @@ A conversation-first local video workflow for Hermes Agent. Keep the editor avai
 - SSH queue transport between a gateway and workstation, immutable music-level revisions with stale-reply rejection, and explicit one-attempt Telegram preview delivery.
 - Public-page reachability/title verification when requested; no automatic public posting.
 
-The real demonstration used local transcription, a saved editable project, existing library music, actual Eyes inspection and Showreel hooks/planning. The gateway-to-workstation delivery test reused the exact reviewed export and labelled it unchanged. A full live attachment/reply-edit/new-export round trip is not yet verified. A skill being available does not prove every backend works.
+The real demonstration used local transcription, a saved editable project, existing library music, actual Eyes inspection and Showreel hooks/planning. The gateway-to-workstation delivery test reused the exact reviewed export and labelled it unchanged. A live reply edit was verified on 11 Nov 2026 (see above); a complete attachment to new-export round trip in one session is not yet verified. A skill being available does not prove every backend works.
 
 ## Install
 
