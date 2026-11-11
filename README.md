@@ -136,7 +136,7 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 81 run, 78 pass, 3 skipped because they need real media fixtures. The full suite renders real video and takes about 2.5 minutes: `python3 -m unittest discover -s . -p 'test_*.py'` (a 120-second timeout cuts it off). It is not an end-to-end validation of the live Telegram loop.
+**Tests:** 82 run, 79 pass, 3 skipped because they need real media fixtures. The full suite renders real video and takes about 3 minutes: `python3 -m unittest discover -s . -p 'test_*.py'` (a short timeout cuts it off). It is not an end-to-end validation of the live Telegram loop.
 
 ### Next: one extraordinary edit, then the whole studio
 
