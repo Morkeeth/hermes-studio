@@ -117,6 +117,31 @@ class HardCap(unittest.TestCase):
                 self.assertEqual(run.call_count, 1)
 
 
+class Tampering(unittest.TestCase):
+    def test_config_change_after_the_quote_is_refused(self):
+        with Env({'demo': {'provider': 'fal', 'model': 'fal-ai/cheap', 'cost_usd': 0.4}}) as env:
+            q = gen_api.quote('demo', 'x')
+            (env.dir / 'models.json').write_text(json.dumps({'demo': {'provider': 'fal', 'model': 'fal-ai/expensive'}}))
+            with patch.object(gen_api, '_run_fal') as run:
+                with self.assertRaises(PermissionError) as e:
+                    gen_api.generate(q, 'YES ' + q['approval_code'], tempfile.mkdtemp())
+            self.assertEqual(run.call_count, 0)
+            self.assertIn('changed after the quote', str(e.exception))
+
+    def test_nan_and_negative_prices_are_refused(self):
+        for bad in (float('nan'), -10.0, float('inf'), '0.4', True):
+            with Env({'bad': {'provider': 'fal', 'model': 'fal-ai/b', 'cost_usd': bad}}):
+                with self.assertRaises(ValueError):
+                    gen_api.quote('bad', 'x')
+
+    def test_a_corrupt_ledger_entry_blocks_spending(self):
+        with Env({'demo': {'provider': 'fal', 'model': 'fal-ai/d', 'cost_usd': 0.4}}) as env:
+            from datetime import datetime
+            (env.dir / 'spend.json').write_text(json.dumps([{'month': datetime.now().strftime('%Y-%m'), 'cost_usd': -50}]))
+            with self.assertRaises(ValueError):
+                gen_api.quote('demo', 'x')
+
+
 class FullLoop(unittest.TestCase):
     def test_finished_short_quote_yes_generated_version(self):
         with Env({'demo': {'provider': 'fal', 'model': 'fal-ai/demo', 'cost_usd': 0.4}}), tempfile.TemporaryDirectory() as tmp:

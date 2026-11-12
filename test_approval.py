@@ -168,5 +168,21 @@ class Approval(unittest.TestCase):
         self.assertEqual(run.call_count, 1)
 
 
+    def test_quote_message_never_lands_in_any_gateway_record(self):
+        import bridge_rpc
+        r = self.quote_job()
+        code = r['quote_message'].split('YES ')[1].split()[0]
+        gw = Path(self.tmp.name) / 'gw3'; (gw / 'jobs').mkdir(parents=True)
+        (gw / 'config.json').write_text(json.dumps({'inbound_roots': [self.tmp.name], 'delivery_chat_id': 1, 'allowed_chat_ids': [1]}))
+        job = {'id': '7' * 32, 'state': 'completed', 'action': 'generate', 'result': {'state': 'awaiting_approval', 'quote': r['quote']}}
+        (gw / 'jobs' / ('7' * 32 + '.json')).write_text(json.dumps(job))
+        with patch('telegram_delivery.send_text', return_value={'state': 'sent', 'message_id': 77}):
+            bridge_rpc.rpc(gw, {'op': 'notify', 'id': '7' * 32, 'text': r['quote_message'], 'bind': True})
+        stored = (gw / 'jobs' / ('7' * 32 + '.json')).read_text()
+        seen = json.dumps(channel.status('7' * 32, gw)) + json.dumps(channel.status(None, gw, reply_to_message_id=77))
+        self.assertNotIn(code, stored)
+        self.assertNotIn(code, seen)
+
+
 if __name__ == '__main__':
     unittest.main()

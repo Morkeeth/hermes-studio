@@ -12,6 +12,7 @@ API shapes verified against the providers' docs on 11 Nov 2026:
   replicate:  POST https://api.replicate.com/v1/models/{owner}/{name}/predictions  (Authorization: Bearer ..., Prefer: wait)
 """
 import base64
+import math
 import fcntl
 import hashlib
 import json
@@ -37,12 +38,19 @@ def _ledger_path():
     return CONFIG / 'spend.json'
 
 
+def _money(value, what, allow_zero=True):
+    """A price, cap or ledger entry must be a finite, non-negative number. NaN or negative values would break the cap."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0 or (value == 0 and not allow_zero):
+        raise ValueError(f'{what} must be a finite number of at least {"0" if allow_zero else "more than 0"}; got {value!r}')
+    return float(value)
+
+
 def spent_this_month():
     p = _ledger_path()
     month = datetime.now().strftime('%Y-%m')
     if not p.is_file():
         return 0.0
-    return sum(e['cost_usd'] or 0 for e in json.loads(p.read_text()) if e['month'] == month)
+    return sum(_money(e['cost_usd'], 'a spend ledger entry') for e in json.loads(p.read_text()) if e['month'] == month)
 
 
 def _record(entry):
@@ -57,6 +65,7 @@ def _reserve(q):
     Studio cannot see or limit what the provider actually charges; reconcile against the provider dashboard."""
     if q.get('ceiling_usd') is None:
         raise PermissionError('price unknown: a hard cap cannot be enforced')
+    _money(q['ceiling_usd'], 'the quoted price'); _money(q['monthly_cap_usd'], 'the monthly cap', allow_zero=False)
     CONFIG.mkdir(parents=True, exist_ok=True)
     with open(CONFIG / 'spend.lock', 'a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -78,6 +87,9 @@ def quote(name, prompt, monthly_cap_usd=20.0):
     if not prompt.strip():
         raise ValueError('empty prompt')
     cost = m.get('cost_usd')
+    if cost is not None:
+        cost = _money(cost, f'cost_usd for {name}')
+    monthly_cap_usd = _money(monthly_cap_usd, 'the monthly cap', allow_zero=False)
     ceiling = cost  # the cap is enforced against the price you declare; Studio cannot see the provider's real charge
     spent = spent_this_month()
     code = secrets.token_hex(3).upper()
@@ -90,7 +102,7 @@ def quote(name, prompt, monthly_cap_usd=20.0):
     elif spent + ceiling > monthly_cap_usd:
         blockers.append(f'would exceed the monthly cap: ${spent:.2f} spent + ${ceiling:.2f} > ${monthly_cap_usd:.2f}')
     q = {'model': name, 'provider': m['provider'], 'provider_model': m['model'], 'prompt': prompt,
-         'cost_usd': cost, 'ceiling_usd': ceiling, 'spent_this_month_usd': round(spent, 2), 'monthly_cap_usd': monthly_cap_usd,
+         'cost_usd': cost, 'ceiling_usd': ceiling, 'config': json.loads(json.dumps(m)), 'spent_this_month_usd': round(spent, 2), 'monthly_cap_usd': monthly_cap_usd,
          'approval_code': code, 'approval_hash': hashlib.sha256((code + prompt + name).encode()).hexdigest(),
          'blockers': blockers}
     q['expires_at'] = time.time() + 30 * 60
@@ -174,7 +186,10 @@ def generate(q, approval, out_dir, image=None):
         raise PermissionError('quote expired; ask for a new quote')
     if hashlib.sha256((q['approval_code'] + q['prompt'] + q['model']).encode()).hexdigest() != q['approval_hash']:
         raise PermissionError('quote changed after approval')
-    m = _models()[q['model']]
+    m = _models().get(q['model'])
+    if m != q.get('config'):
+        raise PermissionError('the model configuration changed after the quote; ask for a new quote')
+    m = q['config']  # submit exactly what was quoted and approved
     key = os.environ[PROVIDERS[m['provider']]]
     _reserve(q)  # atomic budget recheck at the moment of spending
     inputs = {'prompt': q['prompt'], **m.get('extra', {})}
