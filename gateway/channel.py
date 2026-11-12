@@ -20,6 +20,14 @@ EDIT_SCHEMA = {'type': 'object', 'additionalProperties': False, 'properties': {
 REVISE_KEYS = set(EDIT_SCHEMA['properties']) - {'music_gain_db'}
 
 
+def _take_tree():
+    try:
+        from . import take_tree
+    except ImportError:
+        import take_tree
+    return take_tree
+
+
 def atomic(path, obj):
     path = Path(path)
     tmp = path.with_name('.' + path.name + '-' + uuid.uuid4().hex)
@@ -59,8 +67,8 @@ def request(args, root=None):
     root = Path(root) if root else queue_root()
     cfg = config(root)
     action = args['action']
-    if action not in {'library', 'prepare', 'edit', 'preview', 'alternatives', 'finish', 'generate', 'approve', 'revise'}:
-        raise ValueError('Choose library, prepare, edit, preview, alternatives, finish, generate, approve or revise')
+    if action not in {'library', 'prepare', 'edit', 'preview', 'alternatives', 'finish', 'generate', 'approve', 'revise', 'tree'}:
+        raise ValueError('Choose library, prepare, edit, preview, alternatives, finish, generate, approve, revise or tree')
     parent = None
     if args.get('parent'):
         parent = json.loads(job_path(root, args['parent']).read_text())
@@ -104,6 +112,12 @@ def request(args, root=None):
             raise ValueError('approve needs a reply to a generation quote')
         if not re.fullmatch(r'YES [0-9A-F]{6}', str(args.get('query', '')).strip().upper()):
             raise ValueError("approve needs the creator's exact reply: YES plus the six-character code from the quote. Never supply it yourself.")
+    tree = None
+    if action == 'tree':
+        # The tree is drawn from these records only: whitelisted fields, never a query or an approval code.
+        tree = _take_tree().snapshot(root, parent['id'] if parent else None)
+        if not tree:
+            raise ValueError('No delivered video yet. Send a clip first.')
     source = None
     if args.get('source'):
         source = allowed_file(args['source'], cfg['inbound_roots'])
@@ -125,6 +139,8 @@ def request(args, root=None):
            'base_revision': parent.get('result',{}).get('revision') if parent else None,
            'project_id': parent.get('result', {}).get('project_id') if parent else args.get('project_id'),
            'state': 'queued', 'created_at': time.time(), 'result': None}
+    if tree is not None:
+        obj['tree'] = tree
     tmp = path.with_name('.request-' + uuid.uuid4().hex)
     tmp.write_text(json.dumps(obj, indent=2))
     try:
@@ -149,6 +165,7 @@ EXPLAIN = {
     'awaiting_approval': 'A generated shot was quoted. Nothing is spent until the creator replies, in the owner chat, YES plus the six-character code shown in the quote (for example YES 7F3A2C). The code proves the reply came from someone who saw that quote in the owner chat; it does not prove which person typed it.',
     'generated': 'The generated shot was added to the start of the short as a new version.',
     'revised': 'The revision is rendered as a new version; the previous version is kept. The message lists what changed and what could not.',
+    'tree_ready': 'The take tree is drawn: every version of this project in one image. Reply to any video in the chat to start a new version from it.',
     'failed': 'This step failed; the error says why. Nothing was overwritten.',
 }
 

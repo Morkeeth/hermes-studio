@@ -32,6 +32,12 @@ Reply to a finished short with an idea for an opening shot. Hermes calls `studio
 
 Only when the creator replies to that quote with YES plus the code (for example `YES 7F3A2C`), call `studio_request(action="approve", reply_to_message_id=<the quote message>, query=<their reply exactly>, request_key=...)`. Never type or guess the code. The code works once, expires after 30 minutes, and is checked on the workstation; a model without a declared price is blocked. The code shows the reply came from someone who saw the quote in the owner chat; it does not prove who typed it. The generated shot is put at the start of the short as a new version and sent back.
 
+## Branch from any version, and the take tree
+
+Every finished video has a version name in its caption: V1, V2, and V2b for a second version made from the same video. A reply to any older video starts the new version from that video, not from the newest one. Always pass the `reply_to_message_id` of the video the creator replied to. Never pass the newest job as `parent` unless the creator replied to it. Nothing is overwritten; the old branch stays.
+
+When the creator asks for the tree, "tree", or "show me all versions", call `studio_request(action="tree", request_key=...)`. Add `reply_to_message_id` if they replied to a video, to draw that video's project; without it, the newest project is drawn. The workstation sends one image with every version, its name and what changed. Merging two versions into one (two parents) is not supported yet; say so.
+
 ## Several changes in one reply
 
 When the creator replies to a finished short with direction like "keep C, use A's captions, tighten the opening, quieter music", call `studio_request(action="revise", reply_to_message_id=<that video>, edit={"style": "C", "captions_from": "A", "trim_start": 1.5, "punchier": true, "quieter_music": true}, request_key=...)`. Combine any of: style, captions_from, trim_start (seconds), punchier, title, quieter_music, look_from_source. For "make it look like this" with a reference video the creator sent, set look_from_source true and pass source=<that downloaded video>. It renders a new version and keeps the old one. The reply lists what changed and what could not be done (for example, music mixed into the speech track cannot be lowered on its own). Never claim a change the reply does not list.

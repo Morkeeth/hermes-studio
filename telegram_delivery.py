@@ -16,6 +16,15 @@ def secret_value():
 
 
 def send_preview(file, expected_sha256, cfg, receipt, caption='Your Studio preview. Reply with the change you want.'):
+    return _upload(file, expected_sha256, cfg, receipt, caption, 'sendVideo', 'video', 'studio-preview.mp4', 'video/mp4')
+
+
+def send_photo(file, expected_sha256, cfg, receipt, caption):
+    """One image, for example the take tree, to the configured owner chat. Same one-attempt rules as a preview."""
+    return _upload(file, expected_sha256, cfg, receipt, caption, 'sendPhoto', 'photo', 'studio-tree.png', 'image/png')
+
+
+def _upload(file, expected_sha256, cfg, receipt, caption, method, field, filename, ctype):
     path = Path(file).resolve(strict=True)
     raw = path.read_bytes()
     if hashlib.sha256(raw).hexdigest() != expected_sha256:
@@ -39,11 +48,12 @@ def send_preview(file, expected_sha256, cfg, receipt, caption='Your Studio previ
         json.dump({'state':'started_unknown_until_confirmed','sha256':expected_sha256}, stream)
     boundary = 'studio-' + uuid.uuid4().hex
     parts=[]
-    for name,value in [('chat_id',chat),('caption',caption),('supports_streaming','true')]:
+    fields=[('chat_id',chat),('caption',caption)]+([('supports_streaming','true')] if field=='video' else [])
+    for name,value in fields:
         parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
-    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="video"; filename="studio-preview.mp4"\r\nContent-Type: video/mp4\r\n\r\n'.encode()+raw+b'\r\n')
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; filename="{filename}"\r\nContent-Type: {ctype}\r\n\r\n'.encode()+raw+b'\r\n')
     parts.append(f'--{boundary}--\r\n'.encode())
-    req=urllib.request.Request('https://api.telegram.org/bot'+token+'/sendVideo',data=b''.join(parts),headers={'Content-Type':'multipart/form-data; boundary='+boundary})
+    req=urllib.request.Request('https://api.telegram.org/bot'+token+'/'+method,data=b''.join(parts),headers={'Content-Type':'multipart/form-data; boundary='+boundary})
     try:
         with urllib.request.urlopen(req,timeout=90) as response:
             result=json.load(response)
@@ -51,7 +61,9 @@ def send_preview(file, expected_sha256, cfg, receipt, caption='Your Studio previ
             raise RuntimeError('Telegram did not confirm delivery')
         msg=result['result']
         safe={'state':'sent','sha256':expected_sha256,'message_id':msg['message_id'],
-              'chat_id':msg['chat']['id'],'video':{k:msg.get('video',{}).get(k) for k in ('duration','width','height','file_size')}}
+              'chat_id':msg['chat']['id']}
+        if field=='video':
+            safe['video']={k:msg.get('video',{}).get(k) for k in ('duration','width','height','file_size')}
         receipt.write_text(json.dumps(safe,indent=2))
         return safe
     except Exception as exc:

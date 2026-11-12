@@ -50,6 +50,8 @@ def process(cfg, job, fetch):
         return generation(cfg, job, root)
     if job['action'] == 'revise':
         return revise(cfg, job, root, fetch)
+    if job['action'] == 'tree':
+        return tree(job, root)
     if job['action'] == 'prepare':
         blob = fetch(job['id'])
         raw = base64.b64decode(blob['base64'], validate=True)
@@ -201,6 +203,32 @@ def generation(cfg, job, root):
                          'options': parent.get('options'), 'title': parent.get('title'), 'project_id': parent.get('project_id')}
 
 
+def tree(job, root):
+    """Draw the take tree the gateway snapshotted at request time. One frame per version, one ffmpeg at a time."""
+    import take_tree
+    folder = root / job['id']
+    folder.mkdir(exist_ok=False)
+    thumbs = {}
+    for i, n in enumerate(job.get('tree') or []):
+        if not re.fullmatch(r'[a-f0-9]{32}', str(n.get('job'))):
+            continue
+        try:
+            r = json.loads((root / n['job'] / 'result.json').read_text())
+        except (OSError, ValueError):
+            continue  # made on another workstation or removed: drawn as a plain card
+        video = next((o.get('preview') for o in r.get('options') or [] if o.get('option') == n.get('option')), None) if n.get('option') else r.get('preview')
+        if not video or not Path(video).is_file():
+            continue
+        frame = folder / ('thumb-%02d.png' % i)
+        p = subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', '1.0', '-i', str(video), '-frames:v', '1', '-vf', 'scale=216:-2', str(frame)],
+                           capture_output=True, timeout=60)
+        if p.returncode == 0 and frame.is_file():
+            thumbs[n['id']] = frame
+    image = take_tree.render(job.get('tree') or [], thumbs, folder / 'tree.png')
+    return 'completed', {'state': 'tree_ready', 'image': str(image), 'image_sha256': _sha(image),
+                         'versions': sum(1 for n in job.get('tree') or [] if n.get('kind') == 'version')}
+
+
 CAPTION_KEYS = ('box', 'text', 'size', 'words', 'y')
 
 
@@ -318,6 +346,11 @@ def main():
                 say(cfg, job, 'That did not work: ' + str(result.get('error', ''))[:200] + ' Nothing earlier was overwritten.')
             if a.deliver_ready and state=='completed' and result.get('state')=='awaiting_approval':
                 say(cfg, job, quote_message, bind=True)
+                continue
+            if a.deliver_ready and state=='completed' and result.get('state')=='tree_ready':
+                delivered=remote(cfg,{'op':'deliver_photo','id':job['id'],
+                    'base64':base64.b64encode(Path(result['image']).read_bytes()).decode()})
+                print(json.dumps({'id':job['id'],'delivery':delivered}))
                 continue
             if a.deliver_ready and state=='completed' and result.get('options') and result.get('state')=='alternatives_ready':
                 for o in result['options']:

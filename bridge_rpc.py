@@ -10,6 +10,15 @@ import sys
 from channel import atomic, config, job_path, allowed_file
 
 
+def _version(root, obj):
+    """Tree label of this video and of the video it was made from. A label problem never blocks delivery."""
+    try:
+        import take_tree
+        return take_tree.label(root, obj['id'])
+    except Exception:
+        return None, None
+
+
 def rpc(root, payload):
     op = payload['op']
     if op == 'pending':
@@ -33,18 +42,39 @@ def rpc(root, payload):
         if not path.exists():
             with path.open('xb') as stream:stream.write(raw)
         caption='Your checked Studio preview. Reply with the change you want.'
+        name,base=_version(root,obj)
         if obj['result'].get('state')=='revised':
             r=obj['result']
-            caption='Version '+str(r.get('revision'))+'. Changed: '+'; '.join(r.get('changed',[]))+('. Could not: '+'; '.join(r.get('skipped',[])) if r.get('skipped') else '')+'. Previous version kept. Reply with more changes.'
+            caption=(name or 'Version '+str(r.get('revision')))+(', made from '+base if base else '')+'. Changed: '+'; '.join(r.get('changed',[]))+('. Could not: '+'; '.join(r.get('skipped',[])) if r.get('skipped') else '')+'. Previous version kept. Reply with more changes.'
             caption=caption[:1000]
         if obj['result'].get('state')=='generated':
-            caption=f"New version with a generated opening ({obj['result'].get('model')}). Reply with another letter or a new shot idea."
+            caption=(f"{name}: " if name else '')+f"New version with a generated opening ({obj['result'].get('model')}). Reply with another letter or a new shot idea."
         if obj['result'].get('state')=='finished':
-            caption=f"Finished: {obj['result'].get('style')}. Reply A, B or C for another style, or tell me what to change."
+            caption=(f"{name}. " if name else '')+f"Finished: {obj['result'].get('style')}. Reply A, B or C for another style, or tell me what to change. Reply to any older video to start from it instead."
         if obj['result'].get('state')=='existing_reviewed_preview':
             caption='Studio connection test: this is the existing checked Short, unchanged. No new edit was rendered. Reply with a change to continue.'
         delivered=send_preview(path,expected,config(root),folder/(obj['id']+'.json'),caption)
         obj['delivery']=delivered
+        atomic(job,obj)
+        return delivered
+    if op == 'deliver_photo':
+        # The take tree image. Stored apart from 'delivery', so a reply to the image never resolves to a video.
+        if obj['action']!='tree' or obj['state']!='completed' or obj.get('result',{}).get('state')!='tree_ready':
+            raise ValueError('Job has no completed tree image')
+        from telegram_delivery import send_photo
+        import hashlib
+        raw=base64.b64decode(payload['base64'],validate=True)
+        expected=obj['result']['image_sha256']
+        if hashlib.sha256(raw).hexdigest()!=expected:
+            raise ValueError('Worker image differs from job receipt')
+        folder=root/'deliveries';folder.mkdir(exist_ok=True)
+        path=folder/(obj['id']+'.png')
+        if not path.exists():
+            with path.open('xb') as stream:stream.write(raw)
+        count=sum(1 for n in obj.get('tree',[]) if n.get('kind')=='version')
+        caption=f"Take tree: {count} versions of this project. Reply to any video in the chat to start a new version from it. Nothing is overwritten."
+        delivered=send_photo(path,expected,config(root),folder/(obj['id']+'.json'),caption)
+        obj['photo_delivery']=delivered
         atomic(job,obj)
         return delivered
     if op == 'notify':

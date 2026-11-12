@@ -57,6 +57,8 @@ Ask Hermes for any video job ("make a Short from this", "add captions", "cut a t
 
 The old timeline is a strip of clips you drag around. In Hermes Studio the timeline is the chat. Every message is a cut point, every reply is a new version of the same project recipe, and you can scroll back to any version.
 
+**The take tree (tested with a fake Telegram, not run live).** Reply to any older video and the next version starts from that video, not from the newest one. Each caption names its version: V1, V2, and V2b for a second version made from V1. Send `tree` and Studio returns every version of the project as one image. Merging two versions into one is not built yet. `test_take_tree.py` covers it.
+
 Hermes talks it through with you. Ask for a **Short** or full **brain rot**, and Hermes answers with alternatives right in the chat: a clean short, a brain-rot cut, the Hermes dither look. Pick one, keep directing. You pick the style; Hermes picks the tools.
 
 Status: see the table at the top. Every claim there names its evidence.
@@ -136,7 +138,7 @@ The connector layer is in this release (v0.6.0) as an early foundation. Every co
 
 The goal is a loss report for every connector: what is preserved, what is flattened, what is not supported. Details: [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
-**Tests:** 88 run, 85 pass, 3 skipped because they need real media fixtures. The full suite renders real video and takes about 4 minutes: `python3 -m unittest discover -s . -p 'test_*.py'` (a short timeout cuts it off). It is not an end-to-end validation of the live Telegram loop.
+**Tests:** 110 run, 107 pass, 3 skipped because they need real media fixtures. The full suite renders real video and takes about 4 minutes: `python3 -m unittest discover -s . -p 'test_*.py'` (a short timeout cuts it off). It is not an end-to-end validation of the live Telegram loop.
 
 ### Next: one extraordinary edit, then the whole studio
 
