@@ -6,7 +6,7 @@
 
 Turn a reviewed local take into an editable vertical short with animated captions and music from your own library. Reply to the delivered preview to change it: Hermes finds the exact project behind that video and makes a new editable revision, which is rendered through an explicit safety gate.
 
-Editing runs on your machine. Footage leaves it only if you approve a generated shot: then one reference frame goes to the video provider you chose. Every version is kept, never overwritten.
+Editing runs on your machine. Rendered previews and finished versions go to your own Hermes gateway and are sent to your Telegram chat. Nothing goes to a video-generation provider unless you approve a generated shot: then one reference frame goes to the provider you chose. Every version is kept, never overwritten.
 
 ## What is true today
 
