@@ -178,7 +178,8 @@ def generation(cfg, job, root):
         PUBLIC = ('model', 'provider', 'provider_model', 'prompt', 'cost_usd', 'spent_this_month_usd', 'monthly_cap_usd', 'blockers', 'expires_at')
         public = {k: q[k] for k in PUBLIC if k in q}
         return 'completed', {'state': 'awaiting_approval', 'quote': public, 'quote_message': q['message'],
-                             'finished': parent['preview'], 'source': parent['source'],
+                             'finished': parent['preview'], 'source': parent['source'], 'recipe': parent.get('recipe'),
+                             'style': parent.get('style'), 'revision': parent.get('revision'), 'shot': parent.get('shot'),
                              'options': parent.get('options'), 'title': parent.get('title'), 'project_id': parent.get('project_id')}
     secret_path = root / job['parent'] / 'quote-secret.json'
     import fcntl
@@ -196,6 +197,7 @@ def generation(cfg, job, root):
     r = studio_finish.insert_shot(parent['finished'], shot['video'], folder / 'with-shot')
     return 'completed', {'state': 'generated', 'model': q['model'], 'cost_usd': q['cost_usd'], 'shot': shot['video'],
                          'preview': r['output'], 'preview_sha256': _sha(r['output']), 'source': parent['source'],
+                         'recipe': parent.get('recipe'), 'style': parent.get('style'), 'revision': int(parent.get('revision') or 0) + 1,
                          'options': parent.get('options'), 'title': parent.get('title'), 'project_id': parent.get('project_id')}
 
 
@@ -214,8 +216,13 @@ def revise(cfg, job, root, fetch=None):
     def pick(v):
         v = str(v).strip()
         return letters.get(v.upper(), v) if len(v) == 1 else v
-    base = pick(e['style']) if 'style' in e else parent.get('style', 'hermes-dither')
-    st = dict(studio_styles.get(base))
+    saved = recipe.get('style')
+    if 'style' in e:
+        base = pick(e['style']); st = dict(studio_styles.get(base))
+    elif isinstance(saved, dict):
+        base = 'the current look'; st = dict(saved)  # keep a custom or combined look across revisions
+    else:
+        base = saved or parent.get('style') or 'hermes-dither'; st = dict(studio_styles.get(base))
     changed, skipped = [f'style {base}'], []
     if e.get('look_from_source'):
         # recreate a look: the reference clip the creator sent becomes a new style (dither pair, caption box, text)
@@ -245,9 +252,15 @@ def revise(cfg, job, root, fetch=None):
         else:
             layout = studio_finish.audio_layout(parent['source'])
             skipped.append('quieter music: ' + (layout['note'] if layout['streams'] == 1 else 'no separate music track in this source'))
-    r = studio_finish.finish(parent['source'], folder / 'revised', title=title, words=recipe.get('words'), style=st,
+    shot = parent.get('shot')
+    r = studio_finish.finish(parent['source'], folder / ('revised-base' if shot else 'revised'), title=title, words=recipe.get('words'), style=st,
                              intro_seconds=intro, start_at=start, music=music, music_db=music_db, broll=(recipe.get('broll') if str(recipe.get('broll') or '').startswith('/') else None) or cfg.get('broll'))
-    return 'completed', {'state': 'revised', 'style': base, 'changed': changed, 'skipped': skipped, 'title': title,
+    if shot:
+        # a paid generated shot is kept: it goes back in front of the revised cut
+        recipe_path = r['recipe']
+        r = dict(studio_finish.insert_shot(r['output'], shot, folder / 'revised'), recipe=recipe_path, captions=r['captions'])
+        changed.append('generated opening shot kept')
+    return 'completed', {'state': 'revised', 'style': base, 'changed': changed, 'skipped': skipped, 'title': title, 'shot': shot,
                          'preview': r['output'], 'preview_sha256': _sha(r['output']), 'recipe': r['recipe'], 'captions': r['captions'],
                          'source': parent['source'], 'options': parent.get('options'),
                          'revision': int(parent.get('revision') or 0) + 1, 'project_id': parent.get('project_id')}

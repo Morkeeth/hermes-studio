@@ -6,7 +6,7 @@
 
 Turn a reviewed local take into an editable vertical short with animated captions and music from your own library. Reply to the delivered preview to change it: Hermes finds the exact project behind that video and makes a new editable revision, which is rendered through an explicit safety gate.
 
-Your footage never leaves your machine. Every version is kept, never overwritten.
+Editing runs on your machine. Footage leaves it only if you approve a generated shot: then one reference frame goes to the video provider you chose. Every version is kept, never overwritten.
 
 ## What is true today
 
@@ -149,7 +149,7 @@ Two reviews shaped this plan: the creator's ambition (every connector, every ski
 
 ## Install
 
-The full plugin requires Hermes >=0.21.5. The verified composed session used Hermes0.22.7. Install the separately licensed editor, FFmpeg/ffprobe with drawtext/loudnorm/libx264/AAC, and an existing local speech model first. Studio never downloads a model or calls a paid provider.
+The full plugin requires Hermes >=0.21.5. The verified composed session used Hermes0.22.7. Install the separately licensed editor, FFmpeg/ffprobe with drawtext/loudnorm/libx264/AAC, and an existing local speech model first. Studio never downloads a model. Local editing never calls a paid provider; the only paid path is a generated shot you approve with YES plus a one-time code.
 
 ```sh
 hermes plugins install Morkeeth/hermes-studio --enable
