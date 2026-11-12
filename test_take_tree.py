@@ -203,5 +203,81 @@ class ReplyToAnOlderVideo(unittest.TestCase):
         self.assertEqual(out['message_id'], 5)
 
 
+def delivered(gw, jid, action, result, parent=None, created=0.0, state='completed', **extra):
+    """A job whose preview is a small real file, ready for the bridge 'deliver' op."""
+    import hashlib
+    clip = gw / (jid + '.bin'); clip.write_bytes(jid.encode())
+    result = dict(result, preview=str(clip), preview_sha256=hashlib.sha256(clip.read_bytes()).hexdigest())
+    obj = {'id': jid, 'action': action, 'state': state, 'parent': parent, 'created_at': created, 'result': result, **extra}
+    (gw / 'jobs' / (jid + '.json')).write_text(json.dumps(obj))
+    return clip
+
+
+def deliver(gw, jid, clip, mid):
+    seen = []
+
+    def fake(path, sha, conf, receipt, caption):
+        seen.append(caption)
+        return {'state': 'sent', 'sha256': sha, 'message_id': mid, 'chat_id': CHAT}
+    with patch('telegram_delivery.send_preview', side_effect=fake):
+        bridge_rpc.rpc(gw, {'op': 'deliver', 'id': jid, 'base64': base64.b64encode(clip.read_bytes()).decode()})
+    return seen[0]
+
+
+class Captions(unittest.TestCase):
+    def test_finished_and_generated_captions_name_the_version(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            gw = gateway(tmp)
+            v1, q, v2 = '1' * 32, 'c' * 32, '2' * 32
+            clip = delivered(gw, v1, 'finish', {'state': 'finished', 'style': 'brain-rot'}, created=1)
+            cap = deliver(gw, v1, clip, 11)
+            self.assertTrue(cap.startswith('V1. Finished: brain-rot.'), cap)
+            self.assertIn('Reply to any older video to start from it instead.', cap)
+            job(gw, q, 'generate', {'state': 'awaiting_approval'}, parent=v1, created=2)
+            clip = delivered(gw, v2, 'approve', {'state': 'generated', 'model': 'm'}, parent=q, created=3)
+            self.assertTrue(deliver(gw, v2, clip, 12).startswith('V2: New version with a generated opening'))
+
+    def test_a_name_once_sent_never_changes_when_jobs_finish_out_of_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            gw = gateway(tmp)
+            v1, x, y = '1' * 32, 'e' * 32, 'f' * 32
+            deliver(gw, v1, delivered(gw, v1, 'finish', {'state': 'finished', 'style': 'brain-rot'}, created=1), 11)
+            rev = {'state': 'revised', 'changed': ['style the current look'], 'skipped': []}
+            clip_x = delivered(gw, x, 'revise', rev, parent=v1, created=2, state='queued')  # asked first, still rendering
+            clip_y = delivered(gw, y, 'revise', rev, parent=v1, created=3)  # asked second, finished first
+            self.assertTrue(deliver(gw, y, clip_y, 13).startswith('V2, made from V1.'))
+            obj = json.loads((gw / 'jobs' / (x + '.json')).read_text()); obj['state'] = 'completed'
+            (gw / 'jobs' / (x + '.json')).write_text(json.dumps(obj))
+            self.assertTrue(deliver(gw, x, clip_x, 14).startswith('V2b, made from V1.'))
+            nodes = take_tree.graph(take_tree.load(gw))
+            self.assertEqual((nodes[y]['label'], nodes[x]['label']), ('V2', 'V2b'))  # the tree shows what the captions said
+
+
+class WorkerDeliversTheTree(unittest.TestCase):
+    def run_worker(self, gw, ws, **patches):
+        cfg = Path(ws).parent / 'worker.json'
+        cfg.write_text(json.dumps({'workspace': str(ws)}))
+        with patch.object(connector_worker, 'remote', lambda c, payload: bridge_rpc.rpc(gw, payload)), \
+                patch.object(sys, 'argv', ['worker', '--config', str(cfg), '--deliver-ready']), \
+                patch('builtins.print'):
+            connector_worker.main()
+
+    def test_tree_job_is_sent_as_a_photo_and_a_failure_is_said(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            gw, ws = gateway(tmp), Path(tmp) / 'ws'; ws.mkdir()
+            fixture_project(gw)
+            ok = channel.request({'action': 'tree', 'request_key': 'tg:42:40:tree'}, gw)
+            bad = channel.request({'action': 'tree', 'request_key': 'tg:42:41:tree'}, gw)
+            (ws / bad['id']).mkdir()  # its folder already exists, so this tree step fails
+            photos, texts = [], []
+            with patch('telegram_delivery.send_photo', side_effect=lambda *a: photos.append(a[4]) or {'state': 'sent', 'message_id': 400, 'chat_id': CHAT}), \
+                    patch('telegram_delivery.send_text', side_effect=lambda t, c: texts.append(t) or {'state': 'sent', 'message_id': 401}):
+                self.run_worker(gw, ws)
+            self.assertEqual(len(photos), 1)
+            self.assertIn('4 versions', photos[0])
+            self.assertEqual(json.loads((gw / 'jobs' / (ok['id'] + '.json')).read_text())['photo_delivery']['message_id'], 400)
+            self.assertTrue(any(t.startswith('That did not work') for t in texts), texts)
+
+
 if __name__ == '__main__':
     unittest.main()

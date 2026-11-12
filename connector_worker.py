@@ -342,7 +342,7 @@ def main():
                 atomic(root / job['id'] / 'result.json', result)
             remote(cfg, {'op': 'finish', 'id': job['id'], 'state': state, 'result': result})
             print(json.dumps({'id': job['id'], 'state': state, 'result': result}))
-            if a.deliver_ready and state == 'failed' and job['action'] in ('alternatives', 'finish', 'generate', 'approve', 'revise'):
+            if a.deliver_ready and state == 'failed' and job['action'] in ('alternatives', 'finish', 'generate', 'approve', 'revise', 'tree'):
                 say(cfg, job, 'That did not work: ' + str(result.get('error', ''))[:200] + ' Nothing earlier was overwritten.')
             if a.deliver_ready and state=='completed' and result.get('state')=='awaiting_approval':
                 say(cfg, job, quote_message, bind=True)

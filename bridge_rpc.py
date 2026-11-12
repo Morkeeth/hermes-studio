@@ -55,6 +55,8 @@ def rpc(root, payload):
             caption='Studio connection test: this is the existing checked Short, unchanged. No new edit was rendered. Reply with a change to continue.'
         delivered=send_preview(path,expected,config(root),folder/(obj['id']+'.json'),caption)
         obj['delivery']=delivered
+        if name:
+            obj['version']=name  # frozen: the tree keeps the name the creator saw
         atomic(job,obj)
         return delivered
     if op == 'deliver_photo':

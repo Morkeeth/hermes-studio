@@ -64,7 +64,7 @@ def graph(jobs):
                               'label': o['option'], 'what': str(o.get('label') or '')[:40], 'created_at': j.get('created_at', 0)}
         elif r.get('state') in VIDEO:
             nodes[j['id']] = {'id': j['id'], 'job': j['id'], 'option': None, 'parent': _video_parent(j, by), 'kind': 'version',
-                              'what': _what(j), 'created_at': j.get('created_at', 0)}
+                              'what': _what(j), 'created_at': j.get('created_at', 0), 'label': j.get('version')}
     for n in nodes.values():
         if n['parent'] not in nodes:
             n['parent'] = None
@@ -84,14 +84,22 @@ def _depth(nodes, n):
 
 
 def _label(nodes, members):
-    """V<depth>, then V<depth>b, V<depth>c for later versions at the same depth. Stable: oldest first."""
+    """V<depth>, then V<depth>b, V<depth>c for later versions at the same depth.
+
+    A name already sent in a caption is frozen in the job record ('version') and kept, so the
+    caption and the tree never disagree. The other versions take the free names, oldest first.
+    """
     rows = {}
     for n in members:
         if n['kind'] == 'version':
             rows.setdefault(_depth(nodes, n), []).append(n)
     for d, row in rows.items():
-        for i, n in enumerate(sorted(row, key=lambda x: (x['created_at'], x['id']))):
-            n['label'] = 'V%d%s' % (d, '' if i == 0 else chr(ord('a') + i) if i < 26 else str(i))
+        names = ['V%d%s' % (d, '' if i == 0 else chr(ord('a') + i) if i < 26 else str(i)) for i in range(len(row) + 26)]
+        taken = {n['label'] for n in row if n.get('label')}
+        free = [x for x in names if x not in taken]
+        for n in sorted(row, key=lambda x: (x['created_at'], x['id'])):
+            if not n.get('label'):
+                n['label'] = free.pop(0)
 
 
 def project(nodes, nid):
