@@ -42,10 +42,39 @@ class RealRecipe(unittest.TestCase):
 
 
 class Shapes(unittest.TestCase):
-    def test_word_times_win_over_chunks(self):
+    def test_word_times_refine_rendered_chunks(self):
+        # Shape written by finish(): source words, plus rendered chunks that carry their word starts.
         recipe = {'words': [{'text': 'Hi.', 'start': 0.0, 'end': 0.4}, {'text': 'Bye.', 'start': 1.5, 'end': 1.9}],
-                  'chunks': [{'text': 'ignored', 'start': 0, 'end': 2}]}
+                  'chunks': [{'text': 'Hi.', 'start': 0.0, 'end': 1.0, 'words': [{'text': 'Hi.', 'start': 0.0}]},
+                             {'text': 'Bye.', 'start': 1.5, 'end': 2.0, 'words': [{'text': 'Bye.', 'start': 1.5}]}]}
         self.assertEqual([s['parts'] for s in pe.sentences(recipe)], [['Hi.'], [1.1, 'Bye.']])
+
+    def test_trimmed_footage_never_appears(self):
+        # Codex P1: finish() keeps every source word in 'words' but renders only from start_at to the end of the take.
+        recipe = {'start_at': 5.0,
+                  'words': [{'text': 'Excluded.', 'start': 0.0, 'end': 0.5}, {'text': 'Kept.', 'start': 5.0, 'end': 5.5},
+                            {'text': 'Beyond.', 'start': 10.0, 'end': 10.5}],
+                  'chunks': [{'text': 'Kept.', 'start': 0.0, 'end': 0.9, 'words': [{'text': 'Kept.', 'start': 0.0}]}]}
+        text = pe.paper_edit(recipe)
+        self.assertIn('0.0 s  Kept.', text)
+        self.assertNotIn('Excluded', text)
+        self.assertNotIn('Beyond', text)
+        self.assertEqual(pe.sentences(recipe)[0]['end'], 0.5)
+
+    def test_sentence_ends_before_a_closing_quote(self):
+        # Codex P2
+        recipe = {'chunks': [{'text': 'Hello."', 'start': 0, 'end': 1}, {'text': 'Bye.', 'start': 2, 'end': 3}]}
+        self.assertEqual(pe.paper_edit(recipe).split('\n')[1:5], ['HOOK', '0.0 s  Hello."', 'PAYOFF', '2.0 s  [gap 1.0 s] Bye.'])
+
+    def test_gap_must_be_over_the_threshold(self):
+        recipe = {'chunks': [{'text': 'one', 'start': 0, 'end': 1}, {'text': 'two.', 'start': 1.5, 'end': 2}]}
+        self.assertNotIn('[gap', pe.paper_edit(recipe))
+
+    def test_small_limit_is_honoured_or_refused(self):
+        recipe = {'chunks': [{'text': 'A sentence that is long enough.', 'start': 0, 'end': 1}]}
+        self.assertLessEqual(len(pe.paper_edit(recipe, limit=len(pe.NOTE) + 20)), len(pe.NOTE) + 20)
+        with self.assertRaises(ValueError):
+            pe.paper_edit(recipe, limit=100)
 
     def test_short_gaps_are_not_marked(self):
         recipe = {'chunks': [{'text': 'one', 'start': 0, 'end': 1}, {'text': 'two.', 'start': 1.3, 'end': 2}]}
