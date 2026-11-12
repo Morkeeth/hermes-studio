@@ -65,6 +65,19 @@ class Approval(unittest.TestCase):
         self.assertIn('YES ', r['quote_message'])  # only the chat message carries it
         self.assertNotIn('approval_code', r['quote'])
 
+    def test_code_cannot_be_recovered_offline_from_what_the_agent_can_read(self):
+        import hashlib
+        r = self.quote_job()
+        code = r['quote_message'].split('YES ')[1].split()[0]
+        public = json.loads((self.ws / ('a' * 32) / 'result.json').read_text())
+        text = json.dumps(public)
+        self.assertNotIn(code, text)
+        self.assertNotIn('approval_hash', text)
+        # nothing in it is a digest of the code with any public field
+        digests = {hashlib.sha256((code + public['quote'].get(a, '') + public['quote'].get(b, '')).encode()).hexdigest()
+                   for a in ('prompt', 'model', '') for b in ('prompt', 'model', '')}
+        self.assertFalse(any(dg in text for dg in digests))
+
     def test_agent_plain_yes_is_refused_at_the_gateway(self):
         gw = Path(self.tmp.name) / 'gw'; (gw / 'jobs').mkdir(parents=True)
         (gw / 'config.json').write_text(json.dumps({'inbound_roots': [self.tmp.name], 'delivery_chat_id': 1, 'allowed_chat_ids': [1]}))
@@ -100,6 +113,75 @@ class Approval(unittest.TestCase):
         (state, why), calls = self.approve('YES ' + code, 'e' * 32)
         self.assertEqual((state, calls), ('failed', 0))
         self.assertIn('expired', why)
+
+
+    def test_code_from_another_quote_spends_nothing(self):
+        r1 = self.quote_job()
+        code1 = r1['quote_message'].split('YES ')[1].split()[0]
+        # a second quote for the same short: its code differs, and quote 1's code must not open it
+        job2 = {'id': '2' * 32, 'action': 'generate', 'parent': 'f' * 32, 'title': 'demo', 'query': 'other idea'}
+        state, r2 = connector_worker.process(self.cfg, job2, None); r2.pop('quote_message')
+        connector_worker.atomic(self.ws / job2['id'] / 'result.json', r2)
+        job = {'id': '3' * 32, 'action': 'approve', 'parent': '2' * 32, 'query': 'YES ' + code1}
+        with patch.object(gen_api, '_run_fal') as run:
+            try:
+                connector_worker.process(self.cfg, job, None); outcome = 'spent'
+            except PermissionError as e:
+                outcome = str(e)
+        self.assertIn('does not match', outcome)
+        self.assertEqual(run.call_count, 0)
+
+    def test_reply_from_outside_the_owner_chat_cannot_approve(self):
+        gw = Path(self.tmp.name) / 'gw2'; (gw / 'jobs').mkdir(parents=True)
+        (gw / 'config.json').write_text(json.dumps({'inbound_roots': [self.tmp.name], 'delivery_chat_id': 1, 'allowed_chat_ids': [1]}))
+        quote = {'id': '8' * 32, 'state': 'completed', 'action': 'generate', 'result': {'state': 'awaiting_approval'},
+                 'deliveries': [{'state': 'sent', 'message_id': 55, 'chat_id': 999}]}  # sent to a different chat
+        (gw / 'jobs' / ('8' * 32 + '.json')).write_text(json.dumps(quote))
+        with self.assertRaises(ValueError) as e:
+            channel.request({'action': 'approve', 'reply_to_message_id': 55, 'query': 'YES ABCDEF', 'request_key': 'k-x'}, gw)
+        self.assertIn('No unique delivered project', str(e.exception))
+
+    def test_two_simultaneous_approvals_of_one_quote_spend_once(self):
+        import threading
+        r = self.quote_job()
+        code = r['quote_message'].split('YES ')[1].split()[0]
+        outcomes = []
+        real_loads = json.loads
+
+        def slow_loads(text, *a, **k):  # widen the window between reading the quote and marking it used
+            v = real_loads(text, *a, **k)
+            if isinstance(v, dict) and 'approval_code' in v:
+                time.sleep(0.3)
+            return v
+        with patch.object(gen_api, '_run_fal', return_value={'video': {'url': 'https://cdn.example/x.mp4'}}) as run, \
+             patch('connectors.gen_api.urllib.request.urlopen', side_effect=lambda *a, **k: io.BytesIO(self.shot)), \
+             patch('connector_worker.json.loads', side_effect=slow_loads):
+            def go(i):
+                try:
+                    connector_worker.process(self.cfg, {'id': f'{i}' * 32, 'action': 'approve', 'parent': 'a' * 32, 'query': 'YES ' + code}, None)
+                    outcomes.append('spent')
+                except Exception as e:
+                    outcomes.append('refused')
+            ts = [threading.Thread(target=go, args=(i,)) for i in (5, 6)]
+            [t.start() for t in ts]; [t.join() for t in ts]
+        self.assertEqual(sorted(outcomes), ['refused', 'spent'])
+        self.assertEqual(run.call_count, 1)
+
+
+    def test_quote_message_never_lands_in_any_gateway_record(self):
+        import bridge_rpc
+        r = self.quote_job()
+        code = r['quote_message'].split('YES ')[1].split()[0]
+        gw = Path(self.tmp.name) / 'gw3'; (gw / 'jobs').mkdir(parents=True)
+        (gw / 'config.json').write_text(json.dumps({'inbound_roots': [self.tmp.name], 'delivery_chat_id': 1, 'allowed_chat_ids': [1]}))
+        job = {'id': '7' * 32, 'state': 'completed', 'action': 'generate', 'result': {'state': 'awaiting_approval', 'quote': r['quote']}}
+        (gw / 'jobs' / ('7' * 32 + '.json')).write_text(json.dumps(job))
+        with patch('telegram_delivery.send_text', return_value={'state': 'sent', 'message_id': 77}):
+            bridge_rpc.rpc(gw, {'op': 'notify', 'id': '7' * 32, 'text': r['quote_message'], 'bind': True})
+        stored = (gw / 'jobs' / ('7' * 32 + '.json')).read_text()
+        seen = json.dumps(channel.status('7' * 32, gw)) + json.dumps(channel.status(None, gw, reply_to_message_id=77))
+        self.assertNotIn(code, stored)
+        self.assertNotIn(code, seen)
 
 
 if __name__ == '__main__':

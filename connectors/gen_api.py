@@ -2,7 +2,7 @@
 
 Flow, always in this order:
   1. quote()     -> the model, the prompt, the cost from YOUR models.json (or "unknown"), a one-time approval code
-  2. the creator replies YES in the chat
+  2. the creator replies YES plus the one-time code from the quote, in the owner chat
   3. generate()  -> refuses without that approval and inside the monthly cap; submits, waits, downloads one MP4
 Keys are read from the environment on the workstation only (FAL_KEY, REPLICATE_API_TOKEN). They never enter
 a job, a log or a chat. Studio does not guess prices: you write them in models.json from the provider's pricing page.
@@ -12,6 +12,8 @@ API shapes verified against the providers' docs on 11 Nov 2026:
   replicate:  POST https://api.replicate.com/v1/models/{owner}/{name}/predictions  (Authorization: Bearer ..., Prefer: wait)
 """
 import base64
+import math
+import fcntl
 import hashlib
 import json
 import os
@@ -36,18 +38,43 @@ def _ledger_path():
     return CONFIG / 'spend.json'
 
 
+def _money(value, what, allow_zero=True):
+    """A price, cap or ledger entry must be a finite, non-negative number. NaN or negative values would break the cap."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0 or (value == 0 and not allow_zero):
+        raise ValueError(f'{what} must be a finite number of at least {"0" if allow_zero else "more than 0"}; got {value!r}')
+    return float(value)
+
+
 def spent_this_month():
     p = _ledger_path()
     month = datetime.now().strftime('%Y-%m')
     if not p.is_file():
         return 0.0
-    return sum(e['cost_usd'] or 0 for e in json.loads(p.read_text()) if e['month'] == month)
+    return sum(_money(e['cost_usd'], 'a spend ledger entry') for e in json.loads(p.read_text()) if e['month'] == month)
 
 
 def _record(entry):
     p = _ledger_path(); p.parent.mkdir(parents=True, exist_ok=True)
     rows = json.loads(p.read_text()) if p.is_file() else []
     rows.append(entry); p.write_text(json.dumps(rows, indent=1))
+
+
+def _reserve(q):
+    """Under an exclusive lock: recheck spent + this call against the cap, then record it before any money moves.
+    Two approvals racing for the last dollars cannot both pass. The cap counts the prices you declare in models.json.
+    Studio cannot see or limit what the provider actually charges; reconcile against the provider dashboard."""
+    if q.get('ceiling_usd') is None:
+        raise PermissionError('price unknown: a hard cap cannot be enforced')
+    _money(q['ceiling_usd'], 'the quoted price'); _money(q['monthly_cap_usd'], 'the monthly cap', allow_zero=False)
+    CONFIG.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG / 'spend.lock', 'a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        spent = spent_this_month()
+        if spent + q['ceiling_usd'] > q['monthly_cap_usd']:
+            raise PermissionError(f"monthly cap reached at spend time: ${spent:.2f} spent + ${q['ceiling_usd']:.2f} > ${q['monthly_cap_usd']:.2f}")
+        _record({'month': datetime.now().strftime('%Y-%m'), 'at': datetime.now().isoformat(timespec='seconds'),
+                 'model': q['model'], 'cost_usd': q['ceiling_usd'], 'basis': 'declared cost_usd',
+                 'state': 'reserved before submit; estimate, reconcile with the provider dashboard'})
 
 
 def quote(name, prompt, monthly_cap_usd=20.0):
@@ -60,19 +87,27 @@ def quote(name, prompt, monthly_cap_usd=20.0):
     if not prompt.strip():
         raise ValueError('empty prompt')
     cost = m.get('cost_usd')
+    if cost is not None:
+        cost = _money(cost, f'cost_usd for {name}')
+    monthly_cap_usd = _money(monthly_cap_usd, 'the monthly cap', allow_zero=False)
+    ceiling = cost  # the cap is enforced against the price you declare; Studio cannot see the provider's real charge
     spent = spent_this_month()
     code = secrets.token_hex(3).upper()
     blockers = []
     if not os.environ.get(PROVIDERS[m['provider']]):
         blockers.append(f"{PROVIDERS[m['provider']]} is not set on the workstation")
-    if cost is not None and spent + cost > monthly_cap_usd:
-        blockers.append(f'would exceed the monthly cap: ${spent:.2f} spent + ${cost:.2f} > ${monthly_cap_usd:.2f}')
+    if ceiling is None:
+        blockers.append('price unknown: set cost_usd for this model in models.json from the provider\'s fixed price; '
+                        'the monthly cap cannot be enforced against an unknown price')
+    elif spent + ceiling > monthly_cap_usd:
+        blockers.append(f'would exceed the monthly cap: ${spent:.2f} spent + ${ceiling:.2f} > ${monthly_cap_usd:.2f}')
     q = {'model': name, 'provider': m['provider'], 'provider_model': m['model'], 'prompt': prompt,
-         'cost_usd': cost, 'spent_this_month_usd': round(spent, 2), 'monthly_cap_usd': monthly_cap_usd,
+         'cost_usd': cost, 'ceiling_usd': ceiling, 'config': json.loads(json.dumps(m)), 'spent_this_month_usd': round(spent, 2), 'monthly_cap_usd': monthly_cap_usd,
          'approval_code': code, 'approval_hash': hashlib.sha256((code + prompt + name).encode()).hexdigest(),
          'blockers': blockers}
     q['expires_at'] = time.time() + 30 * 60
-    q['message'] = (f"Generate with {name} ({m['provider']}): " + (f'about ${cost:.2f}' if cost is not None else 'cost UNKNOWN, check the provider pricing page')
+    price = f'${cost:.2f} as declared in your models.json' if cost is not None else 'price UNKNOWN, so it is blocked'
+    q['message'] = (f"Generate with {name} ({m['provider']}): " + price
                     + f". Spent this month ${spent:.2f} of ${monthly_cap_usd:.2f}. To spend, reply exactly: YES {code}  (valid 30 minutes, once)"
                     + (' Blocked: ' + '; '.join(blockers) if blockers else ''))
     return q
@@ -151,14 +186,16 @@ def generate(q, approval, out_dir, image=None):
         raise PermissionError('quote expired; ask for a new quote')
     if hashlib.sha256((q['approval_code'] + q['prompt'] + q['model']).encode()).hexdigest() != q['approval_hash']:
         raise PermissionError('quote changed after approval')
-    m = _models()[q['model']]
+    m = _models().get(q['model'])
+    if m != q.get('config'):
+        raise PermissionError('the model configuration changed after the quote; ask for a new quote')
+    m = q['config']  # submit exactly what was quoted and approved
     key = os.environ[PROVIDERS[m['provider']]]
+    _reserve(q)  # atomic budget recheck at the moment of spending
     inputs = {'prompt': q['prompt'], **m.get('extra', {})}
     if image:
         data = base64.b64encode(Path(image).read_bytes()).decode()
         inputs[m.get('image_field', 'image_url')] = 'data:image/png;base64,' + data
-    _record({'month': datetime.now().strftime('%Y-%m'), 'at': datetime.now().isoformat(timespec='seconds'),
-             'model': q['model'], 'cost_usd': q['cost_usd'], 'state': 'submitted'})
     out = (_run_fal if m['provider'] == 'fal' else _run_replicate)(m['model'], inputs, key)
     url = _find_video_url(out)
     if not url:

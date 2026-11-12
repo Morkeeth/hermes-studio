@@ -12,6 +12,14 @@ import time
 import uuid
 
 
+EDIT_SCHEMA = {'type': 'object', 'additionalProperties': False, 'properties': {
+    'music_gain_db': {'type': 'number', 'minimum': -60, 'maximum': 0},
+    'style': {'type': 'string'}, 'captions_from': {'type': 'string'},
+    'trim_start': {'type': 'number', 'minimum': 0, 'maximum': 30}, 'punchier': {'type': 'boolean'},
+    'title': {'type': 'string'}, 'quieter_music': {'type': 'boolean'}, 'look_from_source': {'type': 'boolean'}}}
+REVISE_KEYS = set(EDIT_SCHEMA['properties']) - {'music_gain_db'}
+
+
 def atomic(path, obj):
     path = Path(path)
     tmp = path.with_name('.' + path.name + '-' + uuid.uuid4().hex)
@@ -69,7 +77,7 @@ def request(args, root=None):
     if action == 'revise':
         if not parent or (parent.get('result') or {}).get('state') not in ('finished', 'generated', 'revised'):
             raise ValueError('revise needs a reply to a finished short')
-        allowed = {'style', 'captions_from', 'trim_start', 'punchier', 'title', 'quieter_music', 'look_from_source'}
+        allowed = REVISE_KEYS
         if not edit or set(edit) - allowed:
             raise ValueError('revise edit can combine: ' + ', '.join(sorted(allowed)))
         if edit.get('look_from_source') and not args.get('source'):
@@ -138,7 +146,7 @@ EXPLAIN = {
     'needs_reviewed_cut_recipe': 'This footage has no reviewed recipe for the native editor. To get a finished video now, ask for styles: studio_request action alternatives renders A, B and C from this footage.',
     'alternatives_ready': 'Three style previews were rendered. Reply to one with its letter to get the full finished short.',
     'finished': 'The finished short is rendered. Reply with another letter for a re-cut, or ask for a generated opening shot.',
-    'awaiting_approval': 'A generated shot was quoted. Nothing is spent until the creator replies YES to the quote.',
+    'awaiting_approval': 'A generated shot was quoted. Nothing is spent until the creator replies, in the owner chat, YES plus the six-character code shown in the quote (for example YES 7F3A2C). The code proves the reply came from someone who saw that quote in the owner chat; it does not prove which person typed it.',
     'generated': 'The generated shot was added to the start of the short as a new version.',
     'revised': 'The revision is rendered as a new version; the previous version is kept. The message lists what changed and what could not.',
     'failed': 'This step failed; the error says why. Nothing was overwritten.',

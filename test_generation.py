@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -62,6 +63,83 @@ class Quote(unittest.TestCase):
             with self.assertRaises(ValueError) as e:
                 gen_api.quote('nope', 'x')
             self.assertIn('models.json', str(e.exception))
+
+
+class HardCap(unittest.TestCase):
+    def fake(self):
+        return patch.object(gen_api, '_run_fal', return_value={'video': {'url': 'https://cdn.example/x.mp4'}}), \
+               patch('connectors.gen_api.urllib.request.urlopen', side_effect=lambda *a, **k: io.BytesIO(b'video-bytes'))
+
+    def test_unknown_price_is_blocked_under_a_hard_cap(self):
+        with Env({'mystery': {'provider': 'fal', 'model': 'fal-ai/m'}}):
+            q = gen_api.quote('mystery', 'x')
+            self.assertTrue(any('price unknown' in b for b in q['blockers']))
+            with self.assertRaises(PermissionError):
+                gen_api.generate(q, 'YES ' + q['approval_code'], tempfile.mkdtemp())
+
+    def test_a_local_maximum_is_not_treated_as_a_price(self):
+        # a max_usd only lives on this Mac; the provider could charge more, so it must not unblock a call
+        with Env({'capped': {'provider': 'fal', 'model': 'fal-ai/c', 'max_usd': 3.0}}):
+            q = gen_api.quote('capped', 'x')
+            self.assertTrue(any('price unknown' in b for b in q['blockers']))
+
+    def test_cap_is_rechecked_when_money_moves(self):
+        with Env({'twelve': {'provider': 'fal', 'model': 'fal-ai/t', 'cost_usd': 12.0}}):
+            q1, q2 = gen_api.quote('twelve', 'one'), gen_api.quote('twelve', 'two')
+            self.assertEqual((q1['blockers'], q2['blockers']), ([], []))  # each fits on its own at quote time
+            a, b = self.fake()
+            with a as run, b:
+                gen_api.generate(q1, 'YES ' + q1['approval_code'], tempfile.mkdtemp())
+                with self.assertRaises(PermissionError) as e:
+                    gen_api.generate(q2, 'YES ' + q2['approval_code'], tempfile.mkdtemp())
+                self.assertEqual(run.call_count, 1)
+            self.assertIn('at spend time', str(e.exception))
+            self.assertAlmostEqual(gen_api.spent_this_month(), 12.0)
+
+    def test_two_simultaneous_approvals_cannot_both_spend(self):
+        import threading
+        with Env({'twelve': {'provider': 'fal', 'model': 'fal-ai/t', 'cost_usd': 12.0}}):
+            qs = [gen_api.quote('twelve', f'p{i}') for i in range(2)]
+            results = []
+            a, b = self.fake()
+            real = gen_api.spent_this_month
+            def slow():  # widen the race: read the ledger, then pause, like a slow disk
+                v = real(); time.sleep(0.3); return v
+            with a as run, b, patch.object(gen_api, 'spent_this_month', side_effect=slow):
+                def go(q):
+                    try:
+                        gen_api.generate(q, 'YES ' + q['approval_code'], tempfile.mkdtemp()); results.append('spent')
+                    except PermissionError:
+                        results.append('refused')
+                ts = [threading.Thread(target=go, args=(q,)) for q in qs]
+                [t.start() for t in ts]; [t.join() for t in ts]
+                self.assertEqual(sorted(results), ['refused', 'spent'])
+                self.assertEqual(run.call_count, 1)
+
+
+class Tampering(unittest.TestCase):
+    def test_config_change_after_the_quote_is_refused(self):
+        with Env({'demo': {'provider': 'fal', 'model': 'fal-ai/cheap', 'cost_usd': 0.4}}) as env:
+            q = gen_api.quote('demo', 'x')
+            (env.dir / 'models.json').write_text(json.dumps({'demo': {'provider': 'fal', 'model': 'fal-ai/expensive'}}))
+            with patch.object(gen_api, '_run_fal') as run:
+                with self.assertRaises(PermissionError) as e:
+                    gen_api.generate(q, 'YES ' + q['approval_code'], tempfile.mkdtemp())
+            self.assertEqual(run.call_count, 0)
+            self.assertIn('changed after the quote', str(e.exception))
+
+    def test_nan_and_negative_prices_are_refused(self):
+        for bad in (float('nan'), -10.0, float('inf'), '0.4', True):
+            with Env({'bad': {'provider': 'fal', 'model': 'fal-ai/b', 'cost_usd': bad}}):
+                with self.assertRaises(ValueError):
+                    gen_api.quote('bad', 'x')
+
+    def test_a_corrupt_ledger_entry_blocks_spending(self):
+        with Env({'demo': {'provider': 'fal', 'model': 'fal-ai/d', 'cost_usd': 0.4}}) as env:
+            from datetime import datetime
+            (env.dir / 'spend.json').write_text(json.dumps([{'month': datetime.now().strftime('%Y-%m'), 'cost_usd': -50}]))
+            with self.assertRaises(ValueError):
+                gen_api.quote('demo', 'x')
 
 
 class FullLoop(unittest.TestCase):

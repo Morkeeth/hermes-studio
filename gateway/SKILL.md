@@ -28,7 +28,9 @@ When the user replies to one of those previews with a letter or a style name, ca
 
 ## Generated shots from your own video model
 
-Reply to a finished short with an idea for an opening shot. Hermes calls `studio_request(action="generate", reply_to_message_id=<the finished video>, query=<the shot prompt>, title=<model name from models.json>, request_key=...)`. The worker replies with a quote: model, cost (or UNKNOWN), spent this month and the cap. Nothing is spent yet. Only when the creator types YES as a reply to that quote: `studio_request(action="approve", reply_to_message_id=<the quote message>, query="YES", request_key=...)`. Never type YES on the creator's behalf. The generated shot is put at the start of the short as a new version and sent back.
+Reply to a finished short with an idea for an opening shot. Hermes calls `studio_request(action="generate", reply_to_message_id=<the finished video>, query=<the shot prompt>, title=<model name from models.json>, request_key=...)`. The worker sends a quote to the owner chat: model, the declared price, spent this month, the monthly cap, and a six-character one-time code. Nothing is spent yet, and the code is never in anything you can read.
+
+Only when the creator replies to that quote with YES plus the code (for example `YES 7F3A2C`), call `studio_request(action="approve", reply_to_message_id=<the quote message>, query=<their reply exactly>, request_key=...)`. Never type or guess the code. The code works once, expires after 30 minutes, and is checked on the workstation; a model without a declared price is blocked. The code shows the reply came from someone who saw the quote in the owner chat; it does not prove who typed it. The generated shot is put at the start of the short as a new version and sent back.
 
 ## Several changes in one reply
 

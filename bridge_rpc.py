@@ -51,7 +51,8 @@ def rpc(root, payload):
         # Progress and wrap-up text for a real job, to the configured owner chat only.
         from telegram_delivery import send_text
         sent=send_text(payload['text'],config(root))
-        obj.setdefault('notes',[]).append({'text':str(payload['text'])[:300],'state':sent['state']})
+        # Never store the text: a quote message carries the one-time approval code, and this job is agent-readable.
+        obj.setdefault('notes',[]).append({'state':sent['state'],'chars':len(str(payload['text'])),'bound':bool(payload.get('bind'))})
         if payload.get('bind') and sent.get('state')=='sent':
             # A reply to this message (e.g. YES to a quote) resolves back to this job.
             obj.setdefault('deliveries',[]).append({'state':'sent','message_id':sent['message_id'],'chat_id':config(root)['delivery_chat_id'],'kind':'text'})

@@ -153,5 +153,41 @@ class MusicBed(unittest.TestCase):
             self.assertEqual(recipe['music_db'], -26)
 
 
+class RevisionsKeepWhatWasChosen(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); t = Path(self.tmp.name)
+        self.ws = t / 'ws'; self.ws.mkdir()
+        self.raw = make_clip(t / 'raw.mp4')
+        from connectors import finish
+        self.finish = finish
+        look = {'intro_dark': (60, 20, 10), 'intro_light': (250, 180, 90), 'box': (200, 120, 40), 'text': (255, 255, 255),
+                'highlight': (250, 180, 90), 'highlight_text': (60, 20, 10), 'size': 110, 'words': 3, 'y': 0.8}
+        self.look = look
+        self.fin = finish.finish(self.raw, t / 'fin', title='t', words=[{'text': 'hi', 'start': 0.2, 'end': 0.5}], style=look)
+        self.shot = make_clip(t / 'shot.mp4', seconds=2)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def parent(self, **extra):
+        (self.ws / ('p' * 32)).mkdir()
+        res = {'state': 'generated', 'style': 'the current look', 'source': str(self.raw), 'recipe': self.fin['recipe'],
+               'preview': self.fin['output'], 'revision': 2, **extra}
+        connector_worker.atomic(self.ws / ('p' * 32) / 'result.json', res)
+
+    def test_title_only_revision_keeps_the_paid_shot(self):
+        self.parent(shot=str(self.shot))
+        state, result = connector_worker.process({'workspace': str(self.ws)}, {'id': 'q' * 32, 'action': 'revise', 'parent': 'p' * 32, 'edit': {'title': 'New'}}, None)
+        self.assertIn('generated opening shot kept', result['changed'])
+        dur = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', result['preview']], capture_output=True, text=True).stdout)
+        self.assertAlmostEqual(dur, self.fin['seconds'] + 2.0, delta=0.3)  # the 2-second shot is still in front
+
+    def test_title_only_revision_keeps_a_custom_look(self):
+        self.parent()
+        state, result = connector_worker.process({'workspace': str(self.ws)}, {'id': 'r' * 32, 'action': 'revise', 'parent': 'p' * 32, 'edit': {'title': 'New'}}, None)
+        recipe = json.loads(Path(result['recipe']).read_text())
+        self.assertEqual(tuple(recipe['style']['box']), self.look['box'])
+
+
 if __name__ == '__main__':
     unittest.main()
