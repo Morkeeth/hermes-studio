@@ -88,6 +88,8 @@ class HeroLoop(unittest.TestCase):
             job, state, result = worker_pass()
             self.assertEqual((state, result['state'], result['revision']), ('completed', 'revised', 2))
             self.assertTrue(any('captions from clean-short' in c for c in result['changed']))
+            look = json.loads(Path(result['recipe']).read_text())['style']
+            self.assertEqual((tuple(look['highlight']), tuple(look['highlight_text'])), ((255, 214, 0), (12, 12, 12)))  # A's lit word, not C's
             self.assertTrue(any('tightened' in c for c in result['changed']))
             self.assertTrue(any('quieter music' in k for k in result['skipped']))  # mixed track: said plainly, not faked
             self.assertIn('Could not: quieter music', sent[-1]['caption'])

@@ -202,6 +202,7 @@ def generation(cfg, job, root):
 
 
 CAPTION_KEYS = ('box', 'text', 'size', 'words', 'y')
+HIGHLIGHT_KEYS = ('highlight', 'highlight_text')
 
 
 def revise(cfg, job, root, fetch=None):
@@ -234,7 +235,14 @@ def revise(cfg, job, root, fetch=None):
         changed.append('look taken from your reference clip')
     if 'captions_from' in e:
         src = studio_styles.get(pick(e['captions_from']))
-        st.update({k: src[k] for k in CAPTION_KEYS}); changed.append(f"captions from {pick(e['captions_from'])}")
+        st.update({k: src[k] for k in CAPTION_KEYS})
+        # the lit word is part of the caption look; a style without one (brain rot, mono kinetic) has no lit word
+        for k in HIGHLIGHT_KEYS:
+            if k in src:
+                st[k] = src[k]
+            else:
+                st.pop(k, None)
+        changed.append(f"captions from {pick(e['captions_from'])}")
     start = float(recipe.get('start_at') or 0) + float(e.get('trim_start') or 0)
     if e.get('trim_start'):
         changed.append(f"opening tightened by {e['trim_start']} s")
